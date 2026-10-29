@@ -1,0 +1,17 @@
+{% extends "base.html.j2" %}
+{% block style %}
+  .frame { padding: 200px 88px 160px; }
+  .main { margin-top: 160px; display: grid; gap: 56px; }
+  h1 { font-size: 104px; }
+  /* Espacio libre para el sticker: la historia se sube a mano y el sticker se añade en la app.
+     La sugerencia de sticker va en Notion, no en la imagen. */
+  .sticker-zone { margin-top: 96px; height: 360px; }
+{% endblock %}
+{% block content %}
+  <span class="tag">{{ pillar }}</span>
+  <div class="main">
+    <h1>{{ headline }}</h1>
+    <p class="body">{{ slide.body }}</p>
+  </div>
+  <div class="sticker-zone"></div>
+{% endblock %}

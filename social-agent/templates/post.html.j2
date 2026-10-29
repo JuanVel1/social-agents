@@ -1,0 +1,14 @@
+{% extends "base.html.j2" %}
+{% block style %}
+  .main { margin-top: 120px; display: grid; gap: 56px; }
+  h1 { font-size: 104px; }
+  .rule { width: 160px; height: 8px; background: var(--accent); }
+{% endblock %}
+{% block content %}
+  <span class="tag">{{ pillar }}</span>
+  <div class="main">
+    <h1>{{ headline }}</h1>
+    <div class="rule"></div>
+    <p class="body">{{ slide.body }}</p>
+  </div>
+{% endblock %}

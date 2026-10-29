@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{ fonts.heading | replace(' ', '+') }}:wght@600;700&family={{ fonts.body | replace(' ', '+') }}:wght@400;500&display=swap">
+<style>
+  :root {
+    --primary: {{ colors.primary }};
+    --secondary: {{ colors.secondary }};
+    --bg: {{ colors.background }};
+    --text: {{ colors.text }};
+    --accent: {{ colors.accent }};
+    --heading: '{{ fonts.heading }}', Georgia, serif;
+    --body: '{{ fonts.body }}', 'Segoe UI', Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: {{ width }}px; height: {{ height }}px; overflow: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: var(--body); }
+  .frame { position: relative; width: 100%; height: 100%; padding: 96px 88px; display: flex; flex-direction: column; }
+  .tag { font-family: var(--body); font-weight: 500; font-size: 26px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--primary); }
+  h1 { font-family: var(--heading); font-weight: 700; line-height: 1.05; color: var(--text); text-wrap: balance; }
+  p.body { font-size: 40px; line-height: 1.4; text-wrap: pretty; }
+  .footer { margin-top: auto; display: flex; align-items: center; justify-content: space-between; font-size: 26px; color: var(--secondary); }
+  .footer img { height: 72px; width: auto; }
+  .bar { position: absolute; left: 0; top: 0; width: 100%; height: 16px; background: var(--primary); }
+  {% block style %}{% endblock %}
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="bar"></div>
+  {% block content %}{% endblock %}
+  <div class="footer">
+    <span>{{ handle or brand_name }}</span>
+    {% if logo %}<img src="{{ logo }}" alt="">{% endif %}
+  </div>
+</div>
+</body>
+</html>

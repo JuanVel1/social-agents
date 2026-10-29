@@ -1,0 +1,21 @@
+{% extends "base.html.j2" %}
+{% block style %}
+  .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .count { font-size: 28px; font-weight: 500; color: var(--secondary); font-variant-numeric: tabular-nums; }
+  .main { margin-top: 140px; display: grid; gap: 48px; }
+  h1 { font-size: {{ 112 if first else 84 }}px; }
+  .cta { justify-self: start; margin-top: 24px; padding: 24px 40px; background: var(--primary); color: var(--bg); font-size: 34px; font-weight: 500; border-radius: 8px; }
+  .swipe { font-size: 30px; color: var(--primary); font-weight: 500; }
+{% endblock %}
+{% block content %}
+  <div class="top">
+    <span class="tag">{{ pillar }}</span>
+    <span class="count">{{ '%02d' % index }} / {{ '%02d' % total }}</span>
+  </div>
+  <div class="main">
+    <h1>{{ headline if first else slide.heading }}</h1>
+    {% if not first %}<p class="body">{{ slide.body }}</p>{% endif %}
+    {% if first %}<span class="swipe">Desliza →</span>{% endif %}
+    {% if last %}<span class="cta">{{ cta }}</span>{% endif %}
+  </div>
+{% endblock %}

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arquitectura del Agente de Redes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --color-paper:       #f5f5f5;
+      --color-paper-2:     #ececec;
+      --color-ink:         #2d3142;
+      --color-muted:       #4f5d75;
+      --color-soft:        #7a8399;
+      --color-rule:        rgba(45,49,66,0.12);
+      --color-rule-solid:  rgba(79,93,117,0.25);
+      --color-accent:      #eb6c36;
+      --color-accent-tint: rgba(235,108,54,0.08);
+      --color-link:        #2e5aa8;
+      --font-sans:   'Geist', system-ui, sans-serif;
+      --font-serif:  'Instrument Serif', 'Noto Serif', 'Times New Roman', serif;
+      --font-mono:   'Geist Mono', ui-monospace, Menlo, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      min-height: 100vh;
+      padding: 3rem 2rem;
+      color: var(--color-ink);
+    }
+    @media (max-width: 640px) { body { padding: 2rem 1rem; } }
+
+    .container { max-width: 1280px; margin: 0 auto; }
+
+    .header { margin-bottom: 2rem; }
+    .header-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.75rem;
+    }
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.75rem, 3vw + 1rem, 2.5rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle {
+      font-size: 1rem;
+      line-height: 1.55;
+      color: var(--color-muted);
+      max-width: 62ch;
+    }
+
+    .diagram-container { overflow-x: auto; }
+    svg { width: 100%; min-width: 1280px; display: block; }
+    @media print {
+      .diagram-container { overflow-x: visible; }
+      svg { min-width: 0; }
+    }
+
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin: 2rem 0 0.875rem;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr 0.9fr;
+      gap: 1rem;
+    }
+    @media (max-width: 960px) { .cards { grid-template-columns: 1fr; } }
+
+    .card {
+      background: #ffffff;
+      border-radius: 6px;
+      border: 1px solid var(--color-rule);
+      padding: 1.25rem;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.875rem;
+      padding-bottom: 0.875rem;
+      border-bottom: 1px solid rgba(45,49,66,0.08);
+    }
+    .card-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .card-dot.ink   { background: var(--color-ink); }
+    .card-dot.link  { background: var(--color-link); }
+    .card-dot.soft  { background: var(--color-soft); }
+    .card h3 { font-size: 0.875rem; font-weight: 600; letter-spacing: -0.005em; }
+    .card p {
+      color: var(--color-muted);
+      font-size: 0.8125rem;
+      line-height: 1.55;
+    }
+    .card .tag {
+      display: inline-block;
+      margin-top: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      letter-spacing: 0.06em;
+      color: var(--color-soft);
+    }
+
+    .footer {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid rgba(45,49,66,0.10);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      color: var(--color-soft);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <div class="header">
+      <p class="header-eyebrow">Arquitectura · MVP open source · Plan 1</p>
+      <h1>Qué herramienta hace cada paso del agente</h1>
+      <p class="subtitle">El agente en Python orquesta todo. Lo autoalojado (Playwright y Postiz) corre en tu servidor; Gemini, Notion, R2 y Meta son servicios externos en su capa gratuita. El cliente solo interviene en Notion.</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1280 532" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="arquitectura-oss-title arquitectura-oss-desc">
+        <title id="arquitectura-oss-title">Arquitectura open source del agente de redes</title>
+        <desc id="arquitectura-oss-desc">El agente en Python recibe la marca del cliente, pide el copy a Gemini, renderiza las piezas con Playwright, las sube a Postiz que guarda los medios en Cloudflare R2, las envía a Notion para aprobación y, una vez aprobadas, Postiz las publica en Instagram y Facebook mediante la API de Meta, que descarga las imágenes desde R2.</desc>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+        </defs>
+
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+        <g transform="translate(0,-80)">
+
+          <!-- =========================================================
+               FLECHAS (antes que los nodos)
+               ========================================================= -->
+
+          <!-- Cliente → agente -->
+          <line x1="208" y1="308" x2="272" y2="308" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+          <!-- Agente → Playwright -->
+          <path d="M 304 280 L 304 156 Q 304 148 296 148 L 208 148" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+          <!-- Agente → Gemini (API externa) -->
+          <line x1="436" y1="280" x2="436" y2="176" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+          <!-- Agente → Postiz -->
+          <line x1="504" y1="308" x2="608" y2="308" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+          <!-- Postiz → R2 -->
+          <line x1="700" y1="280" x2="700" y2="176" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+          <!-- Postiz → Meta (ruta principal) -->
+          <line x1="792" y1="308" x2="896" y2="308" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+          <!-- Meta lee la imagen pública en R2 -->
+          <path d="M 988 280 L 988 156 Q 988 148 980 148 L 792 148" fill="none" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-link)"/>
+          <!-- Agente → Notion (pendiente) -->
+          <line x1="356" y1="336" x2="356" y2="440" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+          <!-- Notion → agente (aprobado, revisión cada hora) -->
+          <line x1="420" y1="440" x2="420" y2="336" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+          <!-- Cliente → Notion -->
+          <path d="M 124 336 L 124 460 Q 124 468 132 468 L 296 468" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+          <!-- Etiquetas de flechas (con máscara) -->
+          <rect x="220" y="288" width="40" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="240" y="297" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">MARCA</text>
+
+          <rect x="218" y="128" width="68" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="252" y="137" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">HTML → PNG</text>
+
+          <rect x="446" y="222" width="72" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="482" y="231" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">COPY · JSON</text>
+
+          <rect x="522" y="288" width="68" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="556" y="297" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">PNG · POST</text>
+
+          <rect x="710" y="222" width="48" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="734" y="231" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">MEDIOS</text>
+
+          <rect x="818" y="288" width="52" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="844" y="297" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">PUBLICA</text>
+
+          <rect x="852" y="128" width="68" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="886" y="137" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">LEE IMAGEN</text>
+
+          <rect x="284" y="382" width="64" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="316" y="391" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">PENDIENTE</text>
+
+          <rect x="428" y="382" width="56" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="456" y="391" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">APROBADO</text>
+
+          <rect x="188" y="450" width="52" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="214" y="459" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">APRUEBA</text>
+
+          <!-- =========================================================
+               NODOS
+               ========================================================= -->
+
+          <!-- Playwright (autoalojado) -->
+          <rect x="40" y="120" width="168" height="56" rx="6" fill="#f5f5f5"/>
+          <rect x="40" y="120" width="168" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <rect x="48" y="126" width="24" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+          <text x="60" y="135" fill="#2d3142" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OSS</text>
+          <text x="124" y="150" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Playwright + Jinja2</text>
+          <text x="124" y="165" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">plantillas de marca</text>
+
+          <!-- Gemini (externo) -->
+          <rect x="344" y="120" width="184" height="56" rx="6" fill="#f5f5f5"/>
+          <rect x="344" y="120" width="184" height="56" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+          <rect x="352" y="126" width="24" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
+          <text x="364" y="135" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+          <text x="436" y="150" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Gemini API</text>
+          <text x="436" y="165" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">capa gratuita · Flash</text>
+
+          <!-- Cloudflare R2 (externo) -->
+          <rect x="608" y="120" width="184" height="56" rx="6" fill="#f5f5f5"/>
+          <rect x="608" y="120" width="184" height="56" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+          <rect x="616" y="126" width="24" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
+          <text x="628" y="135" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+          <text x="700" y="150" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Cloudflare R2</text>
+          <text x="700" y="165" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">URL pública de medios</text>
+
+          <!-- Cliente (entrada) -->
+          <rect x="40" y="280" width="168" height="56" rx="20" fill="#f5f5f5"/>
+          <rect x="40" y="280" width="168" height="56" rx="20" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+          <text x="124" y="306" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Cliente</text>
+          <text x="124" y="321" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">brand.yaml · logo</text>
+
+          <!-- social-agent (focal) -->
+          <rect x="272" y="280" width="232" height="56" rx="6" fill="#f5f5f5"/>
+          <rect x="272" y="280" width="232" height="56" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+          <rect x="280" y="286" width="24" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+          <text x="292" y="295" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OSS</text>
+          <text x="388" y="310" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">social-agent</text>
+          <text x="388" y="325" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Python · APScheduler · día 20</text>
+
+          <!-- Postiz (autoalojado) -->
+          <rect x="608" y="280" width="184" height="56" rx="6" fill="#f5f5f5"/>
+          <rect x="608" y="280" width="184" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <rect x="616" y="286" width="24" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+          <text x="628" y="295" fill="#2d3142" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OSS</text>
+          <text x="700" y="310" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Postiz</text>
+          <text x="700" y="325" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Docker · /public/v1</text>
+
+          <!-- Meta Graph API (externo) -->
+          <rect x="896" y="280" width="184" height="56" rx="6" fill="#f5f5f5"/>
+          <rect x="896" y="280" width="184" height="56" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+          <rect x="904" y="286" width="24" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
+          <text x="916" y="295" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+          <text x="988" y="310" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Meta Graph API</text>
+          <text x="988" y="325" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Instagram + Facebook</text>
+
+          <!-- Notion (externo) -->
+          <rect x="296" y="440" width="184" height="56" rx="6" fill="#f5f5f5"/>
+          <rect x="296" y="440" width="184" height="56" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+          <rect x="304" y="446" width="24" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
+          <text x="316" y="455" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+          <text x="388" y="470" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Notion</text>
+          <text x="388" y="485" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">tablero de aprobación</text>
+
+          <!-- Notas editoriales -->
+          <text x="1104" y="140" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">Meta no llega a</text>
+          <text x="1104" y="160" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">localhost: por eso las</text>
+          <text x="1104" y="180" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">imágenes viven en R2.</text>
+
+          <text x="560" y="460" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">El cliente solo toca Notion: lo que marca como</text>
+          <text x="560" y="480" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">Aprobado se programa solo en la revisión de cada hora.</text>
+        </g>
+
+        <!-- ── Leyenda ─────────────────────────────────────────────── -->
+        <line x1="40" y1="456" x2="1240" y2="456" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+        <text x="40" y="476" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.18em">LEYENDA · OSS = AUTOALOJADO · API = SERVICIO EXTERNO</text>
+
+        <rect x="40" y="492" width="24" height="12" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+        <text x="72" y="502" fill="#4f5d75" font-size="8.5" font-family="'Geist', sans-serif">Cliente</text>
+
+        <rect x="148" y="492" width="24" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+        <text x="180" y="502" fill="#4f5d75" font-size="8.5" font-family="'Geist', sans-serif">Núcleo del agente</text>
+
+        <rect x="308" y="492" width="24" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+        <text x="340" y="502" fill="#4f5d75" font-size="8.5" font-family="'Geist', sans-serif">Autoalojado · open source</text>
+
+        <rect x="500" y="492" width="24" height="12" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+        <text x="532" y="502" fill="#4f5d75" font-size="8.5" font-family="'Geist', sans-serif">Servicio externo · capa gratuita</text>
+
+        <line x1="712" y1="498" x2="740" y2="498" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <text x="748" y="502" fill="#4f5d75" font-size="8.5" font-family="'Geist', sans-serif">Flujo</text>
+
+        <line x1="808" y1="498" x2="836" y2="498" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <text x="844" y="502" fill="#4f5d75" font-size="8.5" font-family="'Geist', sans-serif">Llamada a API externa</text>
+
+        <line x1="972" y1="498" x2="1000" y2="498" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+        <text x="1008" y="502" fill="#4f5d75" font-size="8.5" font-family="'Geist', sans-serif">Lectura / retorno</text>
+
+        <line x1="1112" y1="498" x2="1140" y2="498" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+        <text x="1148" y="502" fill="#4f5d75" font-size="8.5" font-family="'Geist', sans-serif">Publicación</text>
+      </svg>
+    </div>
+
+    <p class="section-label">Dónde corre cada pieza</p>
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><span class="card-dot ink"></span><h3>En tu servidor (Docker)</h3></div>
+        <p>social-agent, Playwright y Postiz con su Postgres, Redis y Temporal. Todo open source; el costo es el servidor (~3–4 GB de RAM).</p>
+        <span class="tag">OSS · AGPL-3.0 · Apache-2.0</span>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-dot link"></span><h3>Servicios externos gratis</h3></div>
+        <p>Gemini (copy), Notion (aprobación), R2 (imágenes públicas, 10 GB gratis) y Meta (publicación tras App Review).</p>
+        <span class="tag">API keys en .env</span>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-dot soft"></span><h3>Sigue siendo manual</h3></div>
+        <p>Stickers de historias, grabación de Reels y los cambios que pida el cliente en Notion.</p>
+        <span class="tag">human-in-the-loop</span>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>Agente de IA para Redes Sociales · Arquitectura open source</span>
+      <span>Octubre 2026</span>
+    </div>
+
+  </div>
+</body>
+</html>

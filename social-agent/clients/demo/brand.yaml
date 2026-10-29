@@ -1,0 +1,33 @@
+# Cliente de ejemplo para probar plantillas y el flujo con LLM_PROVIDER=fake.
+# Copia esta carpeta por cada cliente y completa con su manual de marca (Fase 1).
+name: Café La Ladera
+sector: Cafetería de especialidad
+audience: Adultos de 25 a 45 años en Medellín que trabajan cerca y buscan un buen café para llevar o para reunirse
+tone: Cercano y cálido, con conocimiento de café pero sin tecnicismos; tutea al lector
+handle: "@cafelaladera"
+plan: plan1
+pillars:
+  - name: Educativo
+    goal: Enseñar a reconocer y preparar buen café en casa
+  - name: Conversión
+    goal: Promocionar el plan de suscripción mensual de café en grano y los combos de desayuno
+  - name: Conexión
+    goal: Mostrar a los caficultores, el equipo y el día a día del local
+# Datos reales del negocio. Es lo único concreto que el agente puede afirmar;
+# lo que falte sale como [DATO POR CONFIRMAR] para que el cliente lo complete en Notion.
+facts:
+  - Café de especialidad de origen antioqueño, en grano o molido
+  - Plan de suscripción mensual de café en grano con entrega a domicilio en Medellín
+  - Combos de desayuno con bebida de café y algo de comer
+colors:
+  primary: "#8a3b12"
+  secondary: "#7a6a5c"
+  background: "#f6efe6"
+  text: "#2b1d14"
+  accent: "#d9a441"
+fonts:
+  heading: Fraunces
+  body: Work Sans
+logo: null
+# Completa con: social-agent integrations
+postiz_integrations: {}

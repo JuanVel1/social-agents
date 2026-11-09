@@ -84,7 +84,7 @@ No arranques el túnel con `docker run`: queda fuera de la red de Postiz y Cloud
 
 - **Meta:** verificación del negocio, App Review de cada permiso y app en **Live**. Hasta entonces solo funcionan cuentas con rol en la app.
 - **Instagram ↔ página:** Meta no permite vincular @vic.mercadeo a una página ("No se puede establecer el enlace en este momento"); por eso se usa el conector Standalone. Las historias por API exigen cuenta de Empresa.
-- **Fotos con IA:** el código está listo (`style.generate_photos`, comando `rediseñar`), pero `gemini-3-pro-image` no tiene cuota en la capa gratuita: hay que activar la facturación en AI Studio. Después: rehacer las imágenes de la parrilla de diciembre (36 piezas en Pendiente).
+- **Personaje 3D de Vic:** activado en `vic-mercadeo` (`style.character`), con Qwen-Image-Edit en Hugging Face (gratis, pocas imágenes al día). `serve` genera las 3 variantes del maestro a partir de la foto de estudio cuando hay cuota de GPU. Falta elegir la variante oficial (`social-agent personaje elegir`) y dejar que se llene el banco de 24 poses; después, `rediseñar` la parrilla de diciembre (36 piezas en Pendiente). Las fotos realistas con Gemini (`generate_photos`) siguen desactivadas: `gemini-3-pro-image` no tiene cuota gratuita.
 - **Pinterest:** acceso de prueba denegado; ver [`social-agent/README.md`](social-agent/README.md#pinterest-pendiente).
 - **Primera publicación real:** aprobar una pieza en Notion y comprobar que sale en Instagram y Facebook.
 - **Clientes nuevos:** conectar sus redes en Postiz y copiar los IDs con `social-agent integrations` sigue siendo manual.

@@ -6,6 +6,7 @@ from datetime import date, datetime
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from .config import Settings
+from .llm.base import NoQuotaError
 from .pipeline import publish_approved, run_month
 
 log = logging.getLogger(__name__)
@@ -59,6 +60,37 @@ def onboarding_pass(settings: Settings) -> None:
         log.exception("Falló la pasada de onboarding")
 
 
+def character_pass(settings: Settings) -> None:
+    """Avanza el personaje con la cuota de GPU que haya (la gratuita se recarga sola).
+
+    Sin maestro elegido: genera las variantes a partir de style.character_photo y espera a que alguien
+    elija una (`social-agent personaje elegir`). Con maestro: genera las poses que falten.
+    """
+    from .character import QwenEditor, character_dir, fill_poses, make_masters, master_path, pending_poses
+    from .llm import get_provider
+    from .models import Brand
+    from .photos import bank_dir, load_bank
+
+    for client in clients(settings):
+        brand = Brand.load(settings.clients_dir, client)
+        if not brand.style.character:
+            continue
+        editor = QwenEditor(settings.huggingface_token, settings.character_space)
+        try:
+            if not master_path(settings.clients_dir, client).exists():
+                photo = bank_dir(settings.clients_dir, client) / brand.style.character_photo
+                if brand.style.character_photo and photo.is_file():
+                    make_masters(settings.clients_dir, brand, photo, editor)
+                    log.info("Variantes del personaje de %s en %s: elige una con social-agent personaje elegir "
+                             "--client %s --variante <n>", client, character_dir(settings.clients_dir, client), client)
+            elif pending_poses(load_bank(settings.clients_dir, client)):
+                fill_poses(settings.clients_dir, brand, get_provider(settings), editor)
+        except NoQuotaError as exc:
+            log.info("Personaje de %s en pausa: %s", client, exc)
+        except Exception:
+            log.exception("Falló la tanda del personaje de %s", client)
+
+
 def register_jobs(scheduler, settings: Settings) -> list[str]:
     # La parrilla del mes siguiente sale el 20 para dejar tiempo de aprobación.
     scheduler.add_job(monthly_plans, "cron", day=20, hour=7, args=[settings], id="parrilla")
@@ -69,6 +101,9 @@ def register_jobs(scheduler, settings: Settings) -> list[str]:
     scheduler.add_job(publish_approved, id="publicar", **every)
     if settings.notion_onboarding_database_id:
         scheduler.add_job(onboarding_pass, id="onboarding", **every)
+    if settings.huggingface_token:
+        scheduler.add_job(character_pass, "interval", hours=settings.character_poll_hours, args=[settings],
+                          id="personaje", max_instances=1, coalesce=True, next_run_time=datetime.now())
     return [job.id for job in scheduler.get_jobs()]
 
 

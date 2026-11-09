@@ -61,8 +61,10 @@ class NotionBoard:
                 f"de Instagram, añade el sticker y cambia el Estado a Programado. Sticker: {c.sticker or '—'}"))
         if piece.type == "reel_script" and c:
             children.append(_paragraph(c.script))
-        if piece.photo.startswith("generadas/"):  # photos.is_generated, sin importar rembg aquí
+        if piece.photo.startswith("generadas/"):  # photos.is_generated, sin importar photos aquí
             children.append(_paragraph("Imagen generada con IA a partir de fotos de la marca."))
+        elif piece.photo.startswith("personaje/"):  # photos.CHARACTER
+            children.append(_paragraph("Personaje 3D generado con IA a partir de fotos de la marca."))
 
         properties = {
             "Pieza": {"title": _text(c.headline if c else piece.topic)},

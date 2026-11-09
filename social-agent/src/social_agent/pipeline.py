@@ -9,7 +9,7 @@ from .config import Settings
 from .llm import get_provider
 from .models import Brand, MonthPlan
 from .llm.base import NoQuotaError
-from .photos import assign_photos, describe_visuals, generate_photos, usable_photos
+from .photos import CHARACTER, PHOTO, assign_photos, describe_visuals, generate_photos, usable_photos
 from .planner import plan_month
 from .publish import PostizClient, describe, soon
 from .render import render_plan
@@ -55,10 +55,14 @@ def run_month(settings: Settings, client: str, month: str, dry_run: bool) -> Mon
     llm = get_provider(settings)
     plan = plan_month(brand, month, llm)
     if brand.style.photos:
-        photos = usable_photos(settings.clients_dir, brand.slug)
+        photos = usable_photos(settings.clients_dir, brand.slug, CHARACTER) if brand.style.character else []
+        if brand.style.character and not photos:
+            log.warning("%s usa el personaje pero aún no tiene poses (social-agent personaje poses --client %s): "
+                        "esta parrilla sale con las fotos reales", client, client)
+        photos = photos or usable_photos(settings.clients_dir, brand.slug, PHOTO)
         if photos:
             assign_photos(plan, photos, llm)
-            if brand.style.generate_photos:
+            if brand.style.generate_photos and not brand.style.character:  # las poses ya son de IA
                 try:
                     generate_photos(plan, brand, settings.clients_dir, llm)
                 except NoQuotaError as exc:
@@ -88,7 +92,8 @@ def send_for_approval(settings: Settings, plan: MonthPlan, pieces: list) -> None
 
 
 def redesign_month(settings: Settings, client: str, month: str, dry_run: bool) -> dict:
-    """Rehace las imágenes de una parrilla ya escrita (mismos textos) con fotos generadas con IA.
+    """Rehace las imágenes de una parrilla ya escrita (mismos textos) con imágenes generadas con IA:
+    las poses del personaje si el estilo lo usa (character), si no, una foto nueva por pieza.
 
     Sin dry_run, reemplaza en Notion solo las filas que siguen en Pendiente: las archiva y las crea de
     nuevo con las imágenes nuevas. Las que ya se aprobaron, programaron o tienen cambios no se tocan.
@@ -96,8 +101,15 @@ def redesign_month(settings: Settings, client: str, month: str, dry_run: bool) -
     brand = Brand.load(settings.clients_dir, client)
     plan = MonthPlan.model_validate_json(plan_path(settings, client, month).read_text(encoding="utf-8"))
     llm = get_provider(settings)
-    described = describe_visuals(plan, brand, llm)
-    photos = generate_photos(plan, brand, settings.clients_dir, llm)
+    if brand.style.character:
+        poses = usable_photos(settings.clients_dir, brand.slug, CHARACTER)
+        if not poses:
+            raise RuntimeError(f"{client} aún no tiene poses del personaje: social-agent personaje poses --client {client}")
+        assign_photos(plan, poses, llm)
+        described, photos = 0, {"poses": len(poses)}
+    else:
+        described = describe_visuals(plan, brand, llm)
+        photos = generate_photos(plan, brand, settings.clients_dir, llm)
     render_plan(plan, brand, settings.templates_dir, settings.clients_dir, settings.out_dir)
     save_plan(settings, plan)
     write_summary(settings, plan)

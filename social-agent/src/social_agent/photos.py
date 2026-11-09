@@ -1,7 +1,7 @@
 """Banco de fotos del cliente a partir de sus publicaciones de Instagram.
 
 Lee las publicaciones con la conexión que ya tiene Postiz (el token del canal Instagram Standalone, en
-su base de datos), recorta a la persona con rembg, deja que el modelo descarte los recortes malos y
+su base de datos), recorta a la persona (modelo u2net de rembg), deja que el modelo descarte los recortes malos y
 guarda clients/<slug>/fotos/<id>.png y fotos.json. Luego cada pieza de la parrilla elige una foto.
 """
 from __future__ import annotations
@@ -31,6 +31,8 @@ MEDIA_FIELDS = "id,media_type,media_url,thumbnail_url,permalink,timestamp,childr
 PHOTO_TYPES = ("post", "carousel", "story")
 REVIEW_BATCH = 8
 MIN_FIGURE_SHARE = 0.04  # menos del 4 % de la imagen: no hay persona o es un detalle
+PHOTO = "foto"
+CHARACTER = "personaje"  # poses del personaje 3D (character.py), en fotos/personaje/
 
 REVIEW_SYSTEM = (
     "Revisas recortes automáticos (fondo quitado) de fotos de una marca personal para usarlos en "
@@ -55,9 +57,11 @@ def save_bank(clients_dir: Path, slug: str, bank: dict) -> None:
     path.write_text(json.dumps(bank, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
-def usable_photos(clients_dir: Path, slug: str) -> list[dict]:
+def usable_photos(clients_dir: Path, slug: str, kind: str = PHOTO) -> list[dict]:
+    """Fotos útiles del banco: las reales (kind "foto") o las poses del personaje (kind "personaje")."""
     folder = bank_dir(clients_dir, slug)
-    return [p for p in load_bank(clients_dir, slug)["photos"] if p["usable"] and (folder / p["file"]).exists()]
+    return [p for p in load_bank(clients_dir, slug)["photos"]
+            if p["usable"] and p.get("kind", PHOTO) == kind and (folder / p["file"]).exists()]
 
 
 def instagram_token(settings: Settings, brand: Brand,
@@ -104,7 +108,7 @@ def media_images(post: dict) -> list[tuple[str, str]]:
 
 
 def largest_figure(rgba: np.ndarray) -> np.ndarray | None:
-    """Deja solo la figura más grande del recorte (rembg a veces arrastra restos del fondo)."""
+    """Deja solo la figura más grande del recorte (el modelo a veces arrastra restos del fondo)."""
     from scipy import ndimage
 
     mask = rgba[..., 3] > 128
@@ -120,19 +124,65 @@ def largest_figure(rgba: np.ndarray) -> np.ndarray | None:
     return out
 
 
+MODEL_URL = "https://github.com/danielgatis/rembg/releases/download/v0.0.0/{name}.onnx"
+
+
+def _model_path(name: str) -> Path:
+    """El modelo en la carpeta de rembg (~/.rembg/models o la antigua ~/.u2net); si no está, lo descarga."""
+    candidates = [Path(f"~/.rembg/models/{name}/{name}.onnx").expanduser(), Path(f"~/.u2net/{name}.onnx").expanduser()]
+    for path in candidates:
+        if path.exists():
+            return path
+    path = candidates[0]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    log.info("Descargando el modelo de recorte %s (~170 MB) en %s", name, path)
+    with httpx.stream("GET", MODEL_URL.format(name=name), follow_redirects=True, timeout=300) as response:
+        response.raise_for_status()
+        with open(path.with_suffix(".part"), "wb") as f:
+            for chunk in response.iter_bytes():
+                f.write(chunk)
+    path.with_suffix(".part").replace(path)
+    return path
+
+
 class Cutter:
-    """Quita el fondo con rembg. El modelo (~170 MB) se descarga la primera vez en ~/.u2net."""
+    """Quita el fondo con un modelo u2net de rembg, ejecutado directamente con onnxruntime.
 
-    def __init__(self):
-        from rembg import new_session
+    u2net_human_seg (fotos reales) recorta solo a la persona; u2net (personaje) recorta el sujeto
+    completo, con lo que tenga en las manos.
 
-        self.session = new_session("u2net_human_seg")
+    No importa rembg: este importa pymatting y numba, y el Control inteligente de aplicaciones de
+    Windows bloquea la DLL de numba. El resultado es el mismo que rembg.remove(post_process_mask=True).
+    """
+
+    MEAN, STD, SIZE = (0.485, 0.456, 0.406), (0.229, 0.224, 0.225), (320, 320)
+
+    def __init__(self, model: str = "u2net_human_seg"):
+        import onnxruntime as ort
+
+        self.session = ort.InferenceSession(str(_model_path(model)), providers=["CPUExecutionProvider"])
+        self.input = self.session.get_inputs()[0].name
+
+    def mask(self, image: Image.Image) -> np.ndarray:
+        from scipy import ndimage
+
+        small = np.array(image.convert("RGB").resize(self.SIZE, Image.Resampling.LANCZOS), dtype=np.float64)
+        small /= max(small.max(), 1e-6)
+        small = (small - self.MEAN) / self.STD
+        pred = self.session.run(None, {self.input: small.transpose(2, 0, 1)[None].astype(np.float32)})[0][0, 0]
+        pred = (pred - pred.min()) / max(pred.max() - pred.min(), 1e-6)
+        mask = np.array(Image.fromarray((pred * 255).astype("uint8"), mode="L")
+                        .resize(image.size, Image.Resampling.LANCZOS))
+        # Mismo suavizado de bordes que rembg (apertura con un disco de radio 1 + desenfoque + umbral).
+        disk = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=bool)
+        mask = ndimage.grey_opening(mask, footprint=disk)
+        mask = ndimage.gaussian_filter(mask.astype(np.float64), sigma=2)
+        return np.where(mask < 127, 0, 255).astype(np.uint8)
 
     def __call__(self, data: bytes) -> bytes | None:
-        from rembg import remove
-
         image = Image.open(io.BytesIO(data)).convert("RGB")
-        figure = largest_figure(np.array(remove(image, session=self.session, post_process_mask=True)))
+        rgba = np.dstack([np.array(image), self.mask(image)])
+        figure = largest_figure(rgba)
         if figure is None:
             return None
         cut = Image.fromarray(figure)
@@ -152,14 +202,15 @@ def _preview(png: bytes) -> bytes:
     return buffer.getvalue()
 
 
-def review(llm: LLMProvider, cutouts: list[tuple[str, bytes]]) -> dict[str, PhotoReview]:
+def review(llm: LLMProvider, cutouts: list[tuple[str, bytes]],
+           subject: str = "una sola persona (la de la marca)") -> dict[str, PhotoReview]:
     reviews: dict[str, PhotoReview] = {}
     for start in range(0, len(cutouts), REVIEW_BATCH):
         batch = cutouts[start:start + REVIEW_BATCH]
         ids = [photo_id for photo_id, _ in batch]
         result = llm.generate(
             f"Revisa estos {len(batch)} recortes, en el mismo orden que la lista de ids de abajo.\n"
-            "usable = una sola persona (la de la marca) recortada limpia, sin restos de fondo, muebles, "
+            f"usable = {subject} recortada limpia, sin restos de fondo, muebles, "
             "texto o gráficos pegados, sin partes del cuerpo cortadas de forma rara y con calidad suficiente "
             "para ocupar media publicación. Si no sirve, explica por qué en reason.\n"
             "mirrored_text = hay letras o números al revés (foto de cámara frontal).\n"

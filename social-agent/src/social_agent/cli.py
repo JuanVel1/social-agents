@@ -32,6 +32,19 @@ def main(argv: list[str] | None = None) -> int:
     p_photos = sub.add_parser("fotos", help="Actualiza el banco de fotos del cliente con sus publicaciones de Instagram")
     p_photos.add_argument("--client", required=True, help="Carpeta del cliente en clients/")
 
+    p_char = sub.add_parser("personaje", help="Personaje 3D animado de la marca (Hugging Face)")
+    char_sub = p_char.add_subparsers(dest="action", required=True)
+    p_master = char_sub.add_parser("maestro", help="Convierte una foto real en personaje (varias variantes)")
+    p_master.add_argument("--client", required=True, help="Carpeta del cliente en clients/")
+    p_master.add_argument("--foto", required=True, help="Foto de la persona: de frente, buena luz, medio cuerpo")
+    p_master.add_argument("--variantes", type=int, default=3, help="Cuántas variantes generar (máx. 5)")
+    p_choose = char_sub.add_parser("elegir", help="Deja una variante como personaje oficial (maestro.png)")
+    p_choose.add_argument("--client", required=True, help="Carpeta del cliente en clients/")
+    p_choose.add_argument("--variante", required=True, help="Número de la variante (maestro-<n>.png)")
+    p_poses = char_sub.add_parser("poses", help="Genera las poses que faltan en el banco del personaje")
+    p_poses.add_argument("--client", required=True, help="Carpeta del cliente en clients/")
+    p_poses.add_argument("--max", type=int, default=None, help="Máximo de poses en esta tanda")
+
     p_onboarding = sub.add_parser("onboarding", help="Formulario de clientes nuevos en Notion")
     onboarding_sub = p_onboarding.add_subparsers(dest="action", required=True)
     p_setup = onboarding_sub.add_parser("setup", help="Crea la base de datos del formulario en Notion")
@@ -79,6 +92,11 @@ def main(argv: list[str] | None = None) -> int:
         except NoQuotaError as exc:
             print(f"No se generaron imágenes: {exc}. No se cambió nada en Notion ni en Postiz.")
             return 1
+        if "poses" in result:
+            print(f"Piezas con el personaje ({result['poses']} poses en el banco) · filas reemplazadas en "
+                  f"Notion: {result['reemplazadas']}"
+                  + (f" · sin tocar: {', '.join(result['sin_tocar'])}" if result["sin_tocar"] else ""))
+            return 0
         print(f"Fotos generadas: {result['generadas']} (reutilizadas {result['reutilizadas']}, con la original "
               f"{result['originales']}) · filas reemplazadas en Notion: {result['reemplazadas']}"
               + (f" · sin tocar: {', '.join(result['sin_tocar'])}" if result["sin_tocar"] else ""))
@@ -90,6 +108,38 @@ def main(argv: list[str] | None = None) -> int:
         result = refresh_bank(settings, Brand.load(settings.clients_dir, args.client), get_provider(settings))
         print(f"Recortes nuevos: {result['nuevas']} ({result['utiles_nuevas']} útiles) · "
               f"fotos útiles en el banco: {result['utiles']}")
+    elif args.command == "personaje":
+        from pathlib import Path
+
+        from . import character
+        from .llm.base import NoQuotaError
+        from .models import Brand
+
+        if args.action == "elegir":
+            print(f"Personaje oficial: {character.choose_master(settings.clients_dir, args.client, args.variante)}")
+            return 0
+        brand = Brand.load(settings.clients_dir, args.client)
+        editor = character.QwenEditor(settings.huggingface_token, settings.character_space)
+        try:
+            if args.action == "maestro":
+                made = character.make_masters(settings.clients_dir, brand, Path(args.foto), editor,
+                                              min(args.variantes, len(character.MASTER_SEEDS)))
+                print("Variantes:")
+                for path in made:
+                    print(f"  {path}")
+                print(f"Elige una con: social-agent personaje elegir --client {brand.slug} --variante <n>")
+            else:
+                from .llm import get_provider
+
+                r = character.fill_poses(settings.clients_dir, brand, get_provider(settings), editor, limit=args.max)
+                print(f"Poses nuevas: {r['nuevas']} (descartadas {r['descartadas']}) · listas: {r['listas']} · "
+                      f"faltan: {r['faltan']}" + (" · sin cuota de GPU, sigue más tarde" if r["sin_cuota"] else ""))
+        except NoQuotaError as exc:
+            print(f"No se generó nada: {exc}")
+            return 1
+        except FileNotFoundError as exc:
+            print(exc)
+            return 1
     elif args.command == "onboarding":
         from .onboarding import OnboardingBoard, run
 

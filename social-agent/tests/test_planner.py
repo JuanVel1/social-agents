@@ -146,11 +146,13 @@ def test_serve_schedules_onboarding_only_when_configured():
     from social_agent.config import load_settings
     from social_agent.jobs import register_jobs
 
-    settings = load_settings()
+    settings = replace(load_settings(), huggingface_token="")
     with_form = register_jobs(BackgroundScheduler(), replace(settings, notion_onboarding_database_id="abc"))
     without = register_jobs(BackgroundScheduler(), replace(settings, notion_onboarding_database_id=""))
+    with_character = register_jobs(BackgroundScheduler(), replace(settings, huggingface_token="hf_x"))
     assert set(with_form) == {"parrilla", "publicar", "onboarding"}
     assert set(without) == {"parrilla", "publicar"}
+    assert "personaje" in with_character
 
 
 def test_gemini_retries_network_errors():

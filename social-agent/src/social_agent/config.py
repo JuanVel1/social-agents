@@ -18,6 +18,10 @@ class Settings:
     gemini_fallback_models: tuple[str, ...]
     gemini_image_model: str
     gemini_max_rpm: int
+    # Personaje 3D (character.py): Space de Hugging Face que edita la foto y token de la cuenta.
+    huggingface_token: str
+    character_space: str
+    character_poll_hours: int
     notion_token: str
     notion_database_id: str
     notion_onboarding_database_id: str
@@ -49,6 +53,9 @@ def load_settings() -> Settings:
             "GEMINI_FALLBACK_MODELS", "gemini-3-flash-preview,gemini-3.1-flash-lite").split(",") if m.strip()),
         gemini_image_model=env("GEMINI_IMAGE_MODEL", "gemini-3-pro-image"),
         gemini_max_rpm=int(env("GEMINI_MAX_RPM", "8")),
+        huggingface_token=env("HUGGINGFACE_API_TOKEN", ""),
+        character_space=env("CHARACTER_SPACE", "Qwen/Qwen-Image-Edit"),
+        character_poll_hours=int(env("CHARACTER_POLL_HOURS", "3")),
         notion_token=env("NOTION_TOKEN", ""),
         notion_database_id=env("NOTION_DATABASE_ID", ""),
         notion_onboarding_database_id=env("NOTION_ONBOARDING_DATABASE_ID", ""),

@@ -27,6 +27,11 @@ class Style(BaseModel):
     photos: bool = False
     # Generar con IA una foto nueva de la persona para cada pieza, a partir del banco (requiere photos).
     generate_photos: bool = False
+    # Usar las poses del personaje 3D (fotos/personaje/, `social-agent personaje`) en vez de las fotos
+    # reales. Con esto, generate_photos no se aplica: las poses ya son imágenes generadas.
+    character: bool = False
+    # Foto real de la que sale el personaje (relativa a fotos/): `serve` crea las variantes del maestro.
+    character_photo: str = ""
 
 
 class Brand(BaseModel):

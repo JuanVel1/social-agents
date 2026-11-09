@@ -54,7 +54,9 @@ style:
   name: papel-pizarra
   light_pillars: [Educativo]
   photos: true
-  generate_photos: true   # foto nueva con IA por pieza (GEMINI_IMAGE_MODEL, de pago)
+  generate_photos: false  # foto nueva con IA por pieza (GEMINI_IMAGE_MODEL, de pago)
+  character: true          # personaje 3D animado: poses en fotos/personaje/ (social-agent personaje)
+  character_photo: personaje/referencia.jpeg
 logo: logo.svg
 postiz_integrations:
   instagram-standalone: cmvu8hpyb0001p99v3pmu2uba

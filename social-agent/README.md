@@ -155,7 +155,12 @@ uv run social-agent integrations
 # Banco de fotos del cliente a partir de sus publicaciones de Instagram (estilos con photos: true)
 uv run social-agent fotos --client vic-mercadeo
 
-# Rehacer las imágenes de una parrilla ya escrita con fotos nuevas generadas con IA
+# Personaje 3D de la marca: variantes desde una foto, elegir la oficial y generar el banco de poses
+uv run social-agent personaje maestro --client vic-mercadeo --foto ruta/a/foto.jpg
+uv run social-agent personaje elegir --client vic-mercadeo --variante 23
+uv run social-agent personaje poses --client vic-mercadeo
+
+# Rehacer las imágenes de una parrilla ya escrita (con el personaje o con fotos nuevas generadas con IA)
 uv run social-agent rediseñar --client vic-mercadeo --month 2026-12 --dry-run
 
 # Onboarding: rellenar filas nuevas con su manual y activar las aprobadas
@@ -171,7 +176,8 @@ uv run social-agent publish
 uv run social-agent publish --now
 
 # Dejarlo corriendo: parrilla del mes siguiente el día 20 a las 07:00 y, cada APPROVAL_POLL_SECONDS (60 s),
-# revisión de aprobados y onboarding (si NOTION_ONBOARDING_DATABASE_ID está configurado)
+# revisión de aprobados y onboarding (si NOTION_ONBOARDING_DATABASE_ID está configurado); cada
+# CHARACTER_POLL_HOURS (3 h), una tanda del personaje 3D (si HUGGINGFACE_API_TOKEN está configurado)
 uv run social-agent serve
 ```
 
@@ -207,7 +213,7 @@ style:
 
 1. Lee las publicaciones de Instagram con la conexión que ya tiene Postiz: toma el token del canal `instagram-standalone` del cliente de la base de datos de Postiz (`docker exec postiz-postgres psql …`, solo lectura; el permiso `instagram_business_basic` no publica ni borra).
 2. Descarga las láminas de carrusel, las imágenes y las portadas de los Reels que aún no procesó (`fotos.json → seen`).
-3. Recorta a la persona con **rembg** (`u2net_human_seg`, ~170 MB que se descargan la primera vez en `~/.u2net`) y se queda con la figura más grande para quitar restos del fondo.
+3. Recorta a la persona con el modelo `u2net_human_seg` de rembg (~170 MB, se descarga la primera vez en `~/.rembg/models`) y se queda con la figura más grande para quitar restos del fondo. El modelo corre directamente con onnxruntime, sin la librería rembg: esta importa numba, cuya DLL bloquea el Control inteligente de aplicaciones de Windows.
 4. **Gemini revisa cada recorte**: lo descarta si tiene texto o gráficos pegados, restos de muebles o el cuerpo cortado, describe gesto, ropa y encuadre, y detecta fotos en espejo (cámara frontal), que el agente voltea.
 5. Guarda `clients/<slug>/fotos/<id>.png` y `fotos.json` (útil o no, motivo, descripción, enlace al post). La carpeta está en `.gitignore`.
 
@@ -219,7 +225,7 @@ Para que las piezas no repitan las fotos ya publicadas, cada post, carrusel e hi
 
 1. Al escribir el copy, Gemini describe la foto de cada pieza en el campo `visual` (pose, gesto, ropa, objeto; distinta entre piezas de la semana).
 2. `assign_photos` elige la foto del banco que mejor encaja; esa foto y dos primeros planos van como **referencias** a `GEMINI_IMAGE_MODEL` (por defecto `gemini-3-pro-image`), que genera a la misma persona en la pose descrita, sobre fondo gris liso.
-3. La imagen se recorta (rembg) y la revisa el mismo filtro del banco. Hasta 2 intentos; si ninguno sirve, la pieza se queda con la foto original.
+3. La imagen se recorta y la revisa el mismo filtro del banco. Hasta 2 intentos; si ninguno sirve, la pieza se queda con la foto original.
 4. Se guardan en `clients/<slug>/fotos/generadas/<mes>/<pieza>.png` y no se vuelven a generar si ya existen.
 5. La página de Notion de cada pieza dice *"Imagen generada con IA a partir de fotos de la marca"*. Las imágenes de Gemini llevan la marca SynthID (invisible) y Meta puede mostrar "Información de IA".
 
@@ -233,6 +239,24 @@ uv run social-agent rediseñar --client vic-mercadeo --month 2026-12            
 ```
 
 Solo reemplaza las filas en **Pendiente** (las archiva y las crea de nuevo con las imágenes nuevas); las aprobadas, programadas o con cambios no se tocan y el comando las lista.
+
+#### Personaje 3D animado (`style.character: true`)
+
+En vez de fotos de la persona, las piezas llevan una **caricatura 3D estilo película animada** de ella, siempre el mismo personaje, en la pose que pide cada tema. Se genera gratis con [Qwen-Image-Edit](https://huggingface.co/spaces/Qwen/Qwen-Image-Edit), un Space de Hugging Face: al **editar una foto real** (en vez de describirla con texto) conserva el pelo, la barba, los piercings y la ropa.
+
+```yaml
+style:
+  photos: true
+  character: true
+  character_photo: personaje/referencia.jpeg   # relativa a fotos/: de frente, buena luz, medio cuerpo
+```
+
+1. **Maestro:** `personaje maestro` convierte la foto en 3 variantes del personaje (`fotos/personaje/maestro-<n>.png`). Si `character_photo` está en `brand.yaml`, `serve` las genera solo.
+2. **Elegir:** se revisan las variantes y `personaje elegir --variante <n>` deja la oficial como `maestro.png`. Este paso es manual: el personaje se aprueba una sola vez.
+3. **Banco de poses:** a partir del maestro se generan 24 poses (`POSES` en `character.py`: explicando, señalando, brazos cruzados, con laptop, celular, café, megáfono, celebrando, pensando…). Cada una se recorta con el modelo general `u2net`, que conserva lo que el personaje tiene en las manos, y Gemini la revisa. Una pose descartada se reintenta una vez con otra semilla. Las poses entran en `fotos.json` con `kind: personaje`.
+4. **Parrilla:** `assign_photos` elige la pose que mejor va con cada pieza, igual que con las fotos reales. Mientras no haya poses, la parrilla sale con las fotos reales. `generate_photos` no se aplica: las poses ya son imágenes generadas. En Notion la pieza dice *"Personaje 3D generado con IA a partir de fotos de la marca"*. Para rehacer una parrilla ya escrita con el personaje: `rediseñar`.
+
+**Cuota:** el Space usa ZeroGPU. La cuenta gratuita da unos minutos de GPU al día, y cada imagen pide unos 4 min de reserva, así que alcanza para pocas imágenes diarias. El banco se llena **por tandas**: `serve` lo intenta cada `CHARACTER_POLL_HOURS`, guarda cada pose al terminarla y retoma donde quedó. Las 3 variantes y las 24 poses tardan alrededor de una semana con la cuenta gratuita, o un día con [Hugging Face PRO](https://huggingface.co/subscribe/pro) (25 min diarios). Una vez lleno, el banco se reutiliza todos los meses sin gastar cuota.
 
 ## 4. Lo que sigue siendo manual
 

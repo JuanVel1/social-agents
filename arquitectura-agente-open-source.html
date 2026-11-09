@@ -138,13 +138,13 @@
     <div class="header">
       <p class="header-eyebrow">Arquitectura · MVP open source · Plan 1</p>
       <h1>Qué herramienta hace cada paso del agente</h1>
-      <p class="subtitle">El agente en Python orquesta todo. Lo autoalojado (Playwright y Postiz) corre en tu servidor; Gemini, Notion, R2 y Meta son servicios externos en su capa gratuita. El cliente solo interviene en Notion.</p>
+      <p class="subtitle">El agente en Python orquesta todo. Lo autoalojado (Playwright, FFmpeg y Postiz) corre en tu servidor; Gemini, Notion, R2 y Meta son servicios externos en su capa gratuita. El cliente solo interviene en Notion: llena el formulario de onboarding (con su manual de marca en PDF) y aprueba las piezas.</p>
     </div>
 
     <div class="diagram-container">
       <svg viewBox="0 0 1280 532" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="arquitectura-oss-title arquitectura-oss-desc">
         <title id="arquitectura-oss-title">Arquitectura open source del agente de redes</title>
-        <desc id="arquitectura-oss-desc">El agente en Python recibe la marca del cliente, pide el copy a Gemini, renderiza las piezas con Playwright, las sube a Postiz que guarda los medios en Cloudflare R2, las envía a Notion para aprobación y, una vez aprobadas, Postiz las publica en Instagram y Facebook mediante la API de Meta, que descarga las imágenes desde R2.</desc>
+        <desc id="arquitectura-oss-desc">El cliente llena el formulario de onboarding en Notion y sube su manual de marca en PDF; en menos de un minuto el agente se lo pasa a Gemini, que rellena los campos vacíos, y al aprobarse la fila genera el perfil de marca. Con esa marca el agente pide el copy a Gemini, renderiza las piezas con Playwright, edita los reels y sus subtítulos con FFmpeg y Whisper, las sube a Postiz que guarda los medios en Cloudflare R2, las envía a Notion para aprobación y, una vez aprobadas, Postiz las publica en Instagram y Facebook mediante la API de Meta, que descarga las imágenes desde R2.</desc>
         <defs>
           <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
           <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
@@ -167,6 +167,8 @@
           <line x1="436" y1="280" x2="436" y2="176" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
           <!-- Agente → Postiz -->
           <line x1="504" y1="308" x2="608" y2="308" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+          <!-- Agente → FFmpeg (edición de video) -->
+          <path d="M 504 324 L 540 324 Q 548 324 548 332 L 548 460 Q 548 468 556 468 L 608 468" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
           <!-- Postiz → R2 -->
           <line x1="700" y1="280" x2="700" y2="176" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
           <!-- Postiz → Meta (ruta principal) -->
@@ -175,7 +177,7 @@
           <path d="M 988 280 L 988 156 Q 988 148 980 148 L 792 148" fill="none" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-link)"/>
           <!-- Agente → Notion (pendiente) -->
           <line x1="356" y1="336" x2="356" y2="440" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
-          <!-- Notion → agente (aprobado, revisión cada hora) -->
+          <!-- Notion → agente (aprobado, revisión cada minuto) -->
           <line x1="420" y1="440" x2="420" y2="336" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
           <!-- Cliente → Notion -->
           <path d="M 124 336 L 124 460 Q 124 468 132 468 L 296 468" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
@@ -187,11 +189,15 @@
           <rect x="218" y="128" width="68" height="12" rx="2" fill="#f5f5f5"/>
           <text x="252" y="137" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">HTML → PNG</text>
 
-          <rect x="446" y="222" width="72" height="12" rx="2" fill="#f5f5f5"/>
-          <text x="482" y="231" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">COPY · JSON</text>
+          <rect x="446" y="216" width="100" height="24" rx="2" fill="#f5f5f5"/>
+          <text x="496" y="225" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">COPY · JSON</text>
+          <text x="496" y="237" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">LEE MANUAL PDF</text>
 
           <rect x="522" y="288" width="68" height="12" rx="2" fill="#f5f5f5"/>
-          <text x="556" y="297" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">PNG · POST</text>
+          <text x="556" y="297" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">PNG · MP4</text>
+
+          <rect x="514" y="386" width="68" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="548" y="395" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">CLIPS → MP4</text>
 
           <rect x="710" y="222" width="48" height="12" rx="2" fill="#f5f5f5"/>
           <text x="734" y="231" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">MEDIOS</text>
@@ -200,16 +206,17 @@
           <text x="844" y="297" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">PUBLICA</text>
 
           <rect x="852" y="128" width="68" height="12" rx="2" fill="#f5f5f5"/>
-          <text x="886" y="137" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">LEE IMAGEN</text>
+          <text x="886" y="137" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">LEE MEDIOS</text>
 
           <rect x="284" y="382" width="64" height="12" rx="2" fill="#f5f5f5"/>
           <text x="316" y="391" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">PENDIENTE</text>
 
-          <rect x="428" y="382" width="56" height="12" rx="2" fill="#f5f5f5"/>
-          <text x="456" y="391" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">APROBADO</text>
+          <rect x="428" y="376" width="72" height="24" rx="2" fill="#f5f5f5"/>
+          <text x="432" y="385" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">APROBADO</text>
+          <text x="432" y="397" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.12em">FORMULARIO</text>
 
-          <rect x="188" y="450" width="52" height="12" rx="2" fill="#f5f5f5"/>
-          <text x="214" y="459" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">APRUEBA</text>
+          <rect x="150" y="450" width="128" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="214" y="459" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em">FORMULARIO · APRUEBA</text>
 
           <!-- =========================================================
                NODOS
@@ -243,7 +250,7 @@
           <rect x="40" y="280" width="168" height="56" rx="20" fill="#f5f5f5"/>
           <rect x="40" y="280" width="168" height="56" rx="20" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
           <text x="124" y="306" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Cliente</text>
-          <text x="124" y="321" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">brand.yaml · logo</text>
+          <text x="124" y="321" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">formulario · manual PDF</text>
 
           <!-- social-agent (focal) -->
           <rect x="272" y="280" width="232" height="56" rx="6" fill="#f5f5f5"/>
@@ -251,7 +258,7 @@
           <rect x="280" y="286" width="24" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
           <text x="292" y="295" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OSS</text>
           <text x="388" y="310" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">social-agent</text>
-          <text x="388" y="325" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Python · APScheduler · día 20</text>
+          <text x="388" y="325" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Python · APScheduler · brand.yaml</text>
 
           <!-- Postiz (autoalojado) -->
           <rect x="608" y="280" width="184" height="56" rx="6" fill="#f5f5f5"/>
@@ -267,7 +274,7 @@
           <rect x="904" y="286" width="24" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
           <text x="916" y="295" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
           <text x="988" y="310" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Meta Graph API</text>
-          <text x="988" y="325" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Instagram + Facebook</text>
+          <text x="988" y="325" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Facebook · IG (login de IG)</text>
 
           <!-- Notion (externo) -->
           <rect x="296" y="440" width="184" height="56" rx="6" fill="#f5f5f5"/>
@@ -275,15 +282,24 @@
           <rect x="304" y="446" width="24" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
           <text x="316" y="455" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
           <text x="388" y="470" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Notion</text>
-          <text x="388" y="485" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">tablero de aprobación</text>
+          <text x="388" y="485" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">onboarding · aprobación</text>
+
+          <!-- FFmpeg + Whisper (autoalojado) -->
+          <rect x="608" y="440" width="184" height="56" rx="6" fill="#f5f5f5"/>
+          <rect x="608" y="440" width="184" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <rect x="616" y="446" width="24" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+          <text x="628" y="455" fill="#2d3142" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OSS</text>
+          <text x="700" y="470" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">FFmpeg + Whisper</text>
+          <text x="700" y="485" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">reels · subtítulos auto</text>
 
           <!-- Notas editoriales -->
           <text x="1104" y="140" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">Meta no llega a</text>
           <text x="1104" y="160" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">localhost: por eso las</text>
           <text x="1104" y="180" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">imágenes viven en R2.</text>
 
-          <text x="560" y="460" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">El cliente solo toca Notion: lo que marca como</text>
-          <text x="560" y="480" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">Aprobado se programa solo en la revisión de cada hora.</text>
+          <text x="824" y="452" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">El cliente solo toca Notion. Cada minuto el agente</text>
+          <text x="824" y="472" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">rellena el formulario con su manual y programa</text>
+          <text x="824" y="492" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif">lo aprobado; la parrilla sale el día 20.</text>
         </g>
 
         <!-- ── Leyenda ─────────────────────────────────────────────── -->
@@ -320,24 +336,24 @@
     <div class="cards">
       <div class="card">
         <div class="card-header"><span class="card-dot ink"></span><h3>En tu servidor (Docker)</h3></div>
-        <p>social-agent, Playwright y Postiz con su Postgres, Redis y Temporal. Todo open source; el costo es el servidor (~3–4 GB de RAM).</p>
-        <span class="tag">OSS · AGPL-3.0 · Apache-2.0</span>
+        <p>social-agent (<code>serve</code>: onboarding y aprobados cada minuto, parrilla el día 20), Playwright, FFmpeg + faster-whisper (reemplazan a CapCut: cortes, 9:16, música y subtítulos quemados) y Postiz con su Postgres, Redis, Temporal y el conector <code>cloudflared</code>. Todo open source; el costo es el servidor (~4–5 GB de RAM).</p>
+        <span class="tag">OSS · AGPL-3.0 · Apache-2.0 · LGPL · MIT</span>
       </div>
       <div class="card">
         <div class="card-header"><span class="card-dot link"></span><h3>Servicios externos gratis</h3></div>
-        <p>Gemini (copy), Notion (aprobación), R2 (imágenes públicas, 10 GB gratis) y Meta (publicación tras App Review).</p>
+        <p>Gemini (copy y lectura del manual de marca en PDF), Notion (formulario de onboarding y aprobación), R2 (imágenes públicas, 10 GB gratis), Cloudflare Tunnel (publica Postiz en postiz.emprendeconvic.com) y Meta (publicación; App Review pendiente). Google Fonts verifica que cada tipografía cargue.</p>
         <span class="tag">API keys en .env</span>
       </div>
       <div class="card">
         <div class="card-header"><span class="card-dot soft"></span><h3>Sigue siendo manual</h3></div>
-        <p>Stickers de historias, grabación de Reels y los cambios que pida el cliente en Notion.</p>
+        <p>Revisar y aprobar el onboarding, conectar las redes de cada cliente en Postiz, stickers de historias, grabación de Reels, ediciones finas en Kdenlive o Shotcut (gratis, GPL) y los cambios que pida el cliente en Notion.</p>
         <span class="tag">human-in-the-loop</span>
       </div>
     </div>
 
     <div class="footer">
       <span>Agente de IA para Redes Sociales · Arquitectura open source</span>
-      <span>Octubre 2026</span>
+      <span>Noviembre 2026</span>
     </div>
 
   </div>

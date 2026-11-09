@@ -4,6 +4,8 @@ from __future__ import annotations
 import calendar
 import json
 import logging
+import re
+import unicodedata
 from collections import defaultdict
 from datetime import date
 
@@ -42,6 +44,12 @@ SYSTEM = (
     "Puedes hablar en términos generales (\"nuestro equipo\", \"los caficultores\") sin dar nombres."
 )
 
+VISUAL_RULE = (
+    "visual: en una frase, la foto de la persona de la marca que acompaña la pieza: pose, gesto, "
+    "expresión, ropa y un objeto si aplica (laptop, celular, libreta, taza), coherente con el tema y "
+    "distinta entre piezas de la misma semana; sin texto, logos ni pantallas legibles."
+)
+
 TYPE_RULES = """\
 - post: headline de máximo 8 palabras; slides con exactamente 1 elemento (body de máximo 25 palabras); caption de 60 a 120 palabras.
 - carousel: headline gancho de máximo 8 palabras; slides con 6 a 8 elementos: el primero engancha, los del medio enseñan un punto cada uno (body de máximo 30 palabras), el último invita a la acción; caption de 60 a 120 palabras.
@@ -61,13 +69,31 @@ def build_slots(month: str, plan: str) -> list[Slot]:
     return slots
 
 
+# Opciones del formulario de onboarding → qué tipo de llamada a la acción las mueve.
+OBJECTIVE_CTAS = {
+    "Leads": "conseguir contactos: escribir por mensaje directo o WhatsApp, agendar, pedir información",
+    "Ventas": "comprar o reservar un producto o servicio de los datos del negocio",
+    "Reconocimiento": "que recuerden y compartan la marca: guardar, compartir, seguir la cuenta",
+    "Fidelización": "cuidar a quienes ya son clientes: comentar su experiencia, volver, beneficios de la comunidad",
+}
+
+
 def _brand_brief(brand: Brand) -> str:
     facts = "\n".join(f"- {f}" for f in brand.facts) or "(ninguno: no afirmes datos concretos del negocio)"
-    return (
+    brief = (
         f"Marca: {brand.name}\nSector: {brand.sector}\nAudiencia: {brand.audience}\n"
         f"Tono: {brand.tone}\n<pillars>{json.dumps([p.model_dump() for p in brand.pillars], ensure_ascii=False)}</pillars>\n"
         f"<facts>\n{facts}\n</facts>"
     )
+    if brand.objectives:
+        goals = "\n".join(f"- {o}: {OBJECTIVE_CTAS.get(o, o)}" for o in brand.objectives)
+        brief += (f"\n<objectives>\n{goals}\n</objectives>\n"
+                  "Reparte las llamadas a la acción entre estos objetivos según el pilar de cada pieza.")
+    if brand.competitors:
+        brief += (f"\n<competitors>{', '.join(brand.competitors)}</competitors>\n"
+                  "Son competidores o referentes: úsalos solo para diferenciar a la marca. Nunca los "
+                  "nombres, ni en el texto ni en los hashtags, ni hagas comparaciones directas.")
+    return brief
 
 
 def plan_month(brand: Brand, month: str, llm: LLMProvider) -> MonthPlan:
@@ -117,7 +143,10 @@ def _write_week(brand: Brand, pieces: list[Piece], llm: LLMProvider) -> None:
     result = llm.generate(
         f"{_brand_brief(brand)}\n\nEscribe el contenido completo de estas piezas.\n"
         f"Reglas por tipo:\n{TYPE_RULES}\n"
-        "El cta es una sola frase de llamada a la acción. Devuelve una pieza por cada slot_id.\n"
+        "El cta es una sola frase de llamada a la acción. highlight: 1 o 2 palabras seguidas, copiadas "
+        "tal cual del headline, que el diseño resaltará en color (la idea clave, no un artículo). "
+        f"{VISUAL_RULE} "
+        "Devuelve una pieza por cada slot_id.\n"
         f"<pieces>{json.dumps(items, ensure_ascii=False)}</pieces>",
         WeekContent,
         tier="quality",
@@ -136,10 +165,18 @@ def _add_hashtags(brand: Brand, pieces: list[Piece], llm: LLMProvider) -> None:
         f"Marca: {brand.name} ({brand.sector}). Audiencia: {brand.audience}.\n"
         "Para cada pieza propone de 8 a 12 hashtags en español, sin el símbolo #, mezclando "
         "temas del sector, la ciudad o región si aplica y el tema de la pieza.\n"
-        f"<pieces>{json.dumps(items, ensure_ascii=False)}</pieces>",
+        + (f"No uses nombres de estas marcas: {', '.join(brand.competitors)}.\n" if brand.competitors else "")
+        + f"<pieces>{json.dumps(items, ensure_ascii=False)}</pieces>",
         HashtagBatch,
         tier="bulk",
     )
     by_slot = {h.slot_id: h.hashtags for h in result.items}
+    blocked = [b for b in (_compact(c) for c in brand.competitors) if b]
     for p in pieces:
-        p.hashtags = by_slot.get(p.id, [])
+        p.hashtags = [h for h in by_slot.get(p.id, []) if not any(b in _compact(h) for b in blocked)]
+
+
+def _compact(value: str) -> str:
+    """'Café Velvet' y '#cafevelvet' → 'cafevelvet', para comparar hashtags con nombres."""
+    ascii_value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]", "", ascii_value.lower())

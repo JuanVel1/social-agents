@@ -1,0 +1,23 @@
+{% extends "base.html.j2" %}
+{% block style %}
+  {%- set n = headline | length %}
+  .handle { top: 150px; }
+  .main { position: absolute; top: 300px; left: 80px; right: 80px; display: grid; gap: 40px; {{ 'text-align: center; justify-items: center;' if light else '' }} }
+  h1 { font-size: {{ 112 if n < 34 else (96 if n < 50 else 80) }}px; {{ '' if light else 'text-transform: uppercase;' }} }
+  .body { font-size: 42px; max-width: 860px; }
+  /* La historia se sube a mano y el sticker se añade en la app: esta franja queda libre para él. */
+  .sticker-zone { position: absolute; top: 1000px; left: 80px; width: 520px; height: 340px; }
+  {% if light %}
+  .photo { height: 600px; left: 50%; transform: translateX(-50%); }
+  {% else %}
+  .photo { height: 720px; right: -20px; }
+  {% endif %}
+{% endblock %}
+{% block content %}
+  <div class="main">
+    <h1>{{ headline | highlight(highlight_words) }}</h1>
+    <p class="{{ 'body' if light else 'note' }}">{{ slide.body }}</p>
+  </div>
+  <div class="sticker-zone"></div>
+  {% if photo %}<img class="photo" src="{{ photo }}" alt="">{% endif %}
+{% endblock %}

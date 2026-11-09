@@ -1,0 +1,31 @@
+{% extends "base.html.j2" %}
+{#- Portada y cierre llevan la foto; las láminas del medio son texto centrado, como los carruseles educativos. -#}
+{% block style %}
+  {%- set with_photo = photo and (first or last) %}
+  {%- set n = (headline if first else slide.heading) | length %}
+  .main { position: absolute; left: 80px; right: {{ 360 if (with_photo and not light) else 80 }}px; display: grid; gap: 40px; {{ 'text-align: center; justify-items: center;' if light else '' }} }
+  {% if first or last %}
+  .main { top: 170px; }
+  {% else %}
+  /* Láminas del medio: el bloque de texto centrado en la página. */
+  .main { top: 50%; transform: translateY(-50%); }
+  {% endif %}
+  h1 { font-size: {{ (116 if n < 30 else (96 if n < 46 else 80)) if first else (88 if n < 34 else 72) }}px; {{ '' if light else 'text-transform: uppercase;' }} }
+  .body, .note { font-size: {{ 40 if first or last else 46 }}px; max-width: 860px; }
+  .swipe { font: 400 46px var(--hand); color: var(--ink); }
+  {% if light %}
+  .photo { height: {{ 600 if first else 520 }}px; left: 50%; transform: translateX(-50%); }
+  {% else %}
+  .photo { height: {{ 740 if first else 640 }}px; right: -20px; }
+  {% endif %}
+{% endblock %}
+{% block content %}
+  <span class="count">{{ '%02d' % index }} / {{ '%02d' % total }}</span>
+  <div class="main">
+    <h1>{{ (headline | highlight(highlight_words)) if first else slide.heading }}</h1>
+    {% if not first %}<p class="{{ 'body' if light else 'note' }}">{{ slide.body }}</p>{% endif %}
+    {% if first %}<span class="swipe">Desliza →</span>{% endif %}
+    {% if last %}<span class="cta">{{ cta }}</span>{% endif %}
+  </div>
+  {% if photo and (first or last) %}<img class="photo" src="{{ photo }}" alt="">{% endif %}
+{% endblock %}

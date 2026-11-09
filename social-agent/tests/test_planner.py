@@ -118,3 +118,73 @@ def test_schedule_facebook_only_carousel():
         postiz.schedule(brand, story, "America/Bogota")
     assert len(sent) == 1
     assert isinstance(story, Piece)
+
+
+def test_brand_brief_uses_objectives_and_hides_competitors():
+    from social_agent.planner import _brand_brief
+
+    brand = Brand.load(ROOT / "clients", "demo").model_copy(
+        update={"objectives": ["Ventas"], "competitors": ["Café Velvet"]})
+    brief = _brand_brief(brand)
+    assert "Ventas: comprar o reservar" in brief
+    assert "<competitors>Café Velvet</competitors>" in brief and "Nunca los nombres" in brief
+    assert "<objectives>" not in _brand_brief(Brand.load(ROOT / "clients", "demo"))
+
+
+def test_hashtags_with_competitor_names_are_dropped():
+    brand = Brand.load(ROOT / "clients", "demo").model_copy(update={"competitors": ["Emprendimiento"]})
+    plan = plan_month(brand, "2026-11", FakeProvider())
+    tags = {h for p in plan.pieces for h in p.hashtags}
+    assert tags == {"ejemplo", "marca"}
+
+
+def test_serve_schedules_onboarding_only_when_configured():
+    from dataclasses import replace
+
+    from apscheduler.schedulers.background import BackgroundScheduler
+
+    from social_agent.config import load_settings
+    from social_agent.jobs import register_jobs
+
+    settings = load_settings()
+    with_form = register_jobs(BackgroundScheduler(), replace(settings, notion_onboarding_database_id="abc"))
+    without = register_jobs(BackgroundScheduler(), replace(settings, notion_onboarding_database_id=""))
+    assert set(with_form) == {"parrilla", "publicar", "onboarding"}
+    assert set(without) == {"parrilla", "publicar"}
+
+
+def test_gemini_retries_network_errors():
+    import httpx
+
+    from social_agent.config import load_settings
+    from social_agent.llm.gemini import GeminiProvider
+
+    calls = []
+
+    class Models:
+        def generate_content(self, **kwargs):
+            calls.append(kwargs["model"])
+            if len(calls) == 1:
+                raise httpx.ReadError("conexión anulada")
+            return "ok"
+
+    class Client:
+        models = Models()
+
+    provider = GeminiProvider(load_settings(), client=Client(), sleep=lambda s: None)
+    assert provider._call("modelo", "hola", None) == "ok"
+    assert len(calls) == 2
+
+
+def test_week_prompt_asks_for_highlight_and_visual():
+    prompts = []
+
+    class Recording(FakeProvider):
+        def generate(self, prompt, schema, **kwargs):
+            prompts.append(prompt)
+            return super().generate(prompt, schema, **kwargs)
+
+    plan = plan_month(Brand.load(ROOT / "clients", "demo"), "2026-11", Recording())
+    week = next(p for p in prompts if "Escribe el contenido completo" in p)
+    assert "highlight:" in week and "visual:" in week
+    assert all(p.content.visual for p in plan.pieces)

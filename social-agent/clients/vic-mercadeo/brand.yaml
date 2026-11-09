@@ -1,0 +1,61 @@
+# Generado desde el onboarding en Notion (https://app.notion.com/p/Emprendeconvic-4111001d6b49810bb821caff2c76d85c).
+name: Emprendeconvic
+sector: Marketing y servicios profesionales
+audience: Emprendedores y dueños de negocio que buscan aumentar la eficiencia y crecimiento de su empresa (entre
+  15% y 35%) mediante estrategias digitales, optimización de presencia online y automatización con IA.
+tone: Educativo, directo, inspirador y cercano
+handle: '@vic.mercadeo'
+plan: plan1
+pillars:
+- name: Educativo
+  goal: Cursos sobre marketing digital, inteligencia artificial, analítica y diseño (Canva Pro, Google Analytics,
+    Embudos de conversión, Facebook Business Suite, Email Marketing, N8N, Affinity, Google Ads) y contenido explicativo
+    sobre cómo realizar un diagnóstico estratégico digital.
+- name: Conversión
+  goal: Promoción y venta de diagnósticos de marketing digital (Gratuito y Premium de $150 USD), planes de administración
+    de redes sociales (Impulso, Crecimiento, Autoridad), desarrollo de sitios web (Emprendedor, Profesional, Empresarial)
+    y venta de cursos individuales o Pack VIP.
+- name: Conexión
+  goal: La historia personal del coach, su trayectoria profesional con más de 20 proyectos liderados, sus estudios
+    en mercadeo e IA, su visión de democratizar herramientas avanzadas y sus valores personales como la perseverancia
+    en el deporte y la lealtad.
+facts:
+- Ofrece un Diagnóstico Gratis que evalúa claridad de marca, contenido, interacción y punto crítico detectado.
+- Ofrece un Diagnóstico Premium por $150 USD que incluye auditoría completa de marca, contenidos, redes sociales
+  (Instagram, TikTok, Facebook, YouTube, LinkedIn) y sitio web con plan de mejora accionable.
+- Imparte cursos individuales como Creación de Comunidad ($40 USD), Google Analytics ($80 USD), Canva Pro ($90 USD)
+  y un Pack VIP definitivo de 7 cursos con 10% de comisión por reventa.
+- 'Ofrece planes de administración de redes sociales: Plan Impulso ($163 USD/mes), Plan Crecimiento ($272 USD/mes)
+  y Plan Autoridad ($407 USD/mes).'
+- 'Ofrece planes de creación de sitios web en Next.js o WordPress: Plan Emprendedor ($272 USD), Plan Profesional
+  ($489 USD) y Plan Empresarial ($598+ USD).'
+- El coach posee formación en mercadeo nacional e internacional, máster en marketing digital, especialización en
+  gerencia de mercadeo y ventas, e inteligencia artificial, con más de 20 proyectos liderados.
+- Promete aumentar la eficiencia y el crecimiento del negocio entre un 15% y un 35%.
+- 'Sitio web: https://emprendeconvic.com'
+objectives:
+- Leads
+- Ventas
+competitors: []
+colors:
+  primary: '#16a4c8'
+  secondary: '#1c80b4'
+  background: '#ffffff'
+  text: '#0f172a'
+  accent: '#87ceeb'
+fonts:
+  heading: Antonio
+  body: Inter
+  display: Anton
+  hand: Gochi Hand
+# Estilo de sus publicaciones: papel claro para lo educativo, pizarra con garabatos para el resto,
+# y su foto recortada del banco (clients/vic-mercadeo/fotos/, se arma con `social-agent fotos`).
+style:
+  name: papel-pizarra
+  light_pillars: [Educativo]
+  photos: true
+  generate_photos: true   # foto nueva con IA por pieza (GEMINI_IMAGE_MODEL, de pago)
+logo: logo.svg
+postiz_integrations:
+  instagram-standalone: cmvu8hpyb0001p99v3pmu2uba
+  facebook: cmvu51wbt0003o58xdrptyrnu

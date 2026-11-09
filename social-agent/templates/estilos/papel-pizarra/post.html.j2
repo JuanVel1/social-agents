@@ -1,0 +1,22 @@
+{% extends "base.html.j2" %}
+{% block style %}
+  {%- set n = headline | length %}
+  .main { position: absolute; top: 150px; left: 80px; display: grid; gap: 36px; }
+  {% if light %}
+  .main { right: 80px; text-align: center; justify-items: center; }
+  h1 { font-size: {{ 104 if n < 34 else (90 if n < 50 else 76) }}px; }
+  .body { max-width: 800px; font-size: {{ 36 if photo else 44 }}px; }
+  .photo { height: {{ 600 if n < 50 else 520 }}px; left: 50%; transform: translateX(-50%); }
+  {% else %}
+  .main { right: {{ 330 if photo else 80 }}px; gap: 44px; }
+  h1 { font-size: {{ 116 if n < 26 else (96 if n < 40 else 80) }}px; text-transform: uppercase; }
+  .photo { height: 720px; right: -20px; }
+  {% endif %}
+{% endblock %}
+{% block content %}
+  <div class="main">
+    <h1>{{ headline | highlight(highlight_words) }}</h1>
+    <p class="{{ 'body' if light else 'note' }}">{{ slide.body }}</p>
+  </div>
+  {% if photo %}<img class="photo" src="{{ photo }}" alt="">{% endif %}
+{% endblock %}

@@ -21,6 +21,10 @@ services:
       FACEBOOK_APP_ID: ${FACEBOOK_APP_ID}
       FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET}
 
+      # Instagram (Standalone) OAuth Settings
+      INSTAGRAM_APP_ID: ${INSTAGRAM_APP_ID}
+      INSTAGRAM_APP_SECRET: ${INSTAGRAM_APP_SECRET}
+
       # === Storage Settings
       # === Cloudflare (R2) Settings
       STORAGE_PROVIDER: 'cloudflare'
@@ -160,6 +164,16 @@ services:
       - postiz-redis-data:/data
     networks:
       - postiz-network
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: postiz-tunnel
+    restart: always
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    networks:
+      - postiz-network
+    depends_on:
+      - postiz
 
   # For Application Monitoring / Debugging
   spotlight:

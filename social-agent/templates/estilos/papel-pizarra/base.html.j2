@@ -1,0 +1,67 @@
+{#- Estilo "papel y pizarra" (sacado de las publicaciones de @vic.mercadeo):
+    pilares claros (style.light_pillars) sobre papel arrugado, el resto sobre pizarra con garabatos;
+    titulares condensados (fonts.display), notas manuscritas (fonts.hand) y la persona recortada. -#}
+{%- set own_display = fonts.get('display') -%}
+{%- set display = own_display or fonts.heading -%}
+{%- set hand = fonts.get('hand') or 'Gochi Hand' -%}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family={{ display | replace(' ', '+') }}{% if not own_display %}:wght@600;700{% endif %}&family={{ fonts.body | replace(' ', '+') }}:wght@400;500;700&family={{ hand | replace(' ', '+') }}&display=swap">
+<style>
+  :root {
+    --primary: {{ colors.primary }};
+    --ink: {{ '#111111' if light else '#ffffff' }};
+    --soft: {{ '#333333' if light else '#f2f2f2' }};
+    --title: {{ '#111111' if light else colors.primary }};
+    --mark: {{ colors.primary if light else '#ffffff' }};
+    --display: '{{ display }}', Impact, sans-serif;
+    --body: '{{ fonts.body }}', 'Segoe UI', Arial, sans-serif;
+    --hand: '{{ hand }}', 'Comic Sans MS', cursive;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: {{ width }}px; height: {{ height }}px; overflow: hidden; }
+  body { position: relative; font-family: var(--body); color: var(--ink); background: {{ '#efeeec' if light else '#3b3d3f' }}; }
+  .tex, .doodles { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .handle { position: absolute; top: 56px; right: 70px; font: 700 22px var(--body); letter-spacing: .18em; text-transform: uppercase; color: var(--ink); }
+  .count { position: absolute; top: 56px; left: 70px; font: 400 34px var(--hand); color: var(--soft); }
+  h1 { font-family: var(--display); font-weight: {{ 400 if own_display else 700 }}; line-height: 1.02; color: var(--title); text-wrap: balance; }
+  h1 em { font-style: normal; color: var(--mark); }
+  .body { font-size: 36px; line-height: 1.45; color: var(--soft); text-wrap: pretty; }
+  .note { font: 400 44px/1.18 var(--hand); color: var(--ink); text-wrap: pretty; }
+  .pill { display: inline-block; font: 400 40px var(--hand); color: var(--ink); border: 3px solid var(--ink); border-radius: 48px; padding: 8px 30px; }
+  .cta { display: inline-block; font: 700 34px var(--body); color: #fff; background: var(--primary); border-radius: 48px; padding: 18px 40px; }
+  .photo { position: absolute; bottom: 0; width: auto; }
+  {% if not light %}
+  /* Borde blanco tipo sticker, como en los posts personales. */
+  .photo { filter: drop-shadow(6px 0 0 #fff) drop-shadow(-6px 0 0 #fff) drop-shadow(0 6px 0 #fff) drop-shadow(0 -6px 0 #fff); }
+  {% endif %}
+  {% block style %}{% endblock %}
+</style>
+</head>
+<body>
+{% if light %}
+<svg class="tex" viewBox="0 0 {{ width }} {{ height }}" preserveAspectRatio="none"><filter id="papel">
+  <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="5" seed="7"/>
+  <feDiffuseLighting lighting-color="#efeeec" surfaceScale="5"><feDistantLight azimuth="235" elevation="58"/></feDiffuseLighting>
+</filter><rect width="100%" height="100%" filter="url(#papel)"/></svg>
+{% else %}
+<svg class="tex" viewBox="0 0 {{ width }} {{ height }}" preserveAspectRatio="none"><filter id="tiza">
+  <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3"/>
+  <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .09 0"/>
+</filter><rect width="100%" height="100%" filter="url(#tiza)"/></svg>
+<svg class="doodles" viewBox="0 0 {{ width }} {{ height }}" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+  {%- set star = 'M0 -50 L8 -8 L50 0 L8 8 L0 50 L-8 8 L-50 0 L-8 -8 Z' %}
+  {#- Debajo de la firma (que en las historias baja a 150 px). #}
+  <path d="{{ star }}" transform="translate({{ width - 170 }} {{ 200 if height < 1500 else 235 }}) scale(1.1)" stroke-width="4"/>
+  {#- Los otros garabatos van en la franja inferior izquierda, lejos del texto. #}
+  <path d="{{ star }}" transform="translate(300 {{ height - 150 }}) scale(.7)" stroke-width="5"/>
+  <path d="M5 40 C25 5,40 5,45 30 S70 55,80 25 S110 0,145 30" transform="translate({{ width - 330 }} {{ (height * 0.42) | int }})" stroke-width="5"/>
+  <path d="M30 10 L22 90 M70 10 L62 90 M10 35 L90 35 M8 65 L88 65" transform="translate(90 {{ height - 220 }})" stroke-width="6"/>
+</svg>
+{% endif %}
+<div class="handle">{{ (handle or brand_name).lstrip('@') if light else (handle or brand_name) }}</div>
+{% block content %}{% endblock %}
+</body>
+</html>

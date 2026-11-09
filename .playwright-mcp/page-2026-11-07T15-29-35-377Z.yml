@@ -1,0 +1,83 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - paragraph [ref=e4]: Arquitectura · MVP open source · Plan 1
+    - heading "Qué herramienta hace cada paso del agente" [level=1] [ref=e5]
+    - paragraph [ref=e6]: "El agente en Python orquesta todo. Lo autoalojado (Playwright, FFmpeg y Postiz) corre en tu servidor; Gemini, Notion, R2 y Meta son servicios externos en su capa gratuita. El cliente solo interviene en Notion: llena el formulario de onboarding (con su manual de marca en PDF) y aprueba las piezas."
+  - img "Arquitectura open source del agente de redes El cliente llena el formulario de onboarding en Notion y sube su manual de marca en PDF; cada hora el agente se lo pasa a Gemini, que rellena los campos vacíos, y al aprobarse la fila genera el perfil de marca. Con esa marca el agente pide el copy a Gemini, renderiza las piezas con Playwright, edita los reels y sus subtítulos con FFmpeg y Whisper, las sube a Postiz que guarda los medios en Cloudflare R2, las envía a Notion para aprobación y, una vez aprobadas, Postiz las publica en Instagram y Facebook mediante la API de Meta, que descarga las imágenes desde R2." [ref=e8]:
+    - generic [ref=e10]:
+      - generic [ref=e16]: MARCA
+      - generic [ref=e18]: HTML → PNG
+      - generic [ref=e20]: COPY · JSON
+      - generic [ref=e21]: LEE MANUAL PDF
+      - generic [ref=e23]: PNG · MP4
+      - generic [ref=e25]: CLIPS → MP4
+      - generic [ref=e27]: MEDIOS
+      - generic [ref=e29]: PUBLICA
+      - generic [ref=e31]: LEE MEDIOS
+      - generic [ref=e33]: PENDIENTE
+      - generic [ref=e35]: APROBADO
+      - generic [ref=e36]: FORMULARIO · PDF
+      - generic [ref=e38]: FORMULARIO · APRUEBA
+      - generic [ref=e42]: OSS
+      - generic [ref=e43]: Playwright + Jinja2
+      - generic [ref=e44]: plantillas de marca
+      - generic [ref=e48]: API
+      - generic [ref=e49]: Gemini API
+      - generic [ref=e50]: capa gratuita · Flash
+      - generic [ref=e54]: API
+      - generic [ref=e55]: Cloudflare R2
+      - generic [ref=e56]: URL pública de medios
+      - generic [ref=e59]: Cliente
+      - generic [ref=e60]: formulario · manual PDF
+      - generic [ref=e64]: OSS
+      - generic [ref=e65]: social-agent
+      - generic [ref=e66]: Python · APScheduler · brand.yaml
+      - generic [ref=e70]: OSS
+      - generic [ref=e71]: Postiz
+      - generic [ref=e72]: Docker · /public/v1
+      - generic [ref=e76]: API
+      - generic [ref=e77]: Meta Graph API
+      - generic [ref=e78]: Facebook · IG (login de IG)
+      - generic [ref=e82]: API
+      - generic [ref=e83]: Notion
+      - generic [ref=e84]: onboarding · aprobación
+      - generic [ref=e88]: OSS
+      - generic [ref=e89]: FFmpeg + Whisper
+      - generic [ref=e90]: reels · subtítulos auto
+      - generic [ref=e91]: Meta no llega a
+      - generic [ref=e92]: "localhost: por eso las"
+      - generic [ref=e93]: imágenes viven en R2.
+      - generic [ref=e94]: El cliente solo toca Notion. Cada hora el agente
+      - generic [ref=e95]: rellena el formulario con su manual y programa
+      - generic [ref=e96]: lo aprobado; la parrilla sale el día 20.
+    - generic [ref=e97]: LEYENDA · OSS = AUTOALOJADO · API = SERVICIO EXTERNO
+    - generic [ref=e99]: Cliente
+    - generic [ref=e101]: Núcleo del agente
+    - generic [ref=e103]: Autoalojado · open source
+    - generic [ref=e105]: Servicio externo · capa gratuita
+    - generic [ref=e106]: Flujo
+    - generic [ref=e107]: Llamada a API externa
+    - generic [ref=e108]: Lectura / retorno
+    - generic [ref=e109]: Publicación
+  - paragraph [ref=e110]: Dónde corre cada pieza
+  - generic [ref=e111]:
+    - generic [ref=e112]:
+      - heading "En tu servidor (Docker)" [level=3] [ref=e115]
+      - paragraph [ref=e116]:
+        - text: social-agent (
+        - code [ref=e117]: serve
+        - text: ": onboarding y publicación cada hora, parrilla el día 20), Playwright, FFmpeg + faster-whisper (reemplazan a CapCut: cortes, 9:16, música y subtítulos quemados) y Postiz con su Postgres, Redis, Temporal y el conector"
+        - code [ref=e118]: cloudflared
+        - text: . Todo open source; el costo es el servidor (~4–5 GB de RAM).
+      - generic [ref=e119]: OSS · AGPL-3.0 · Apache-2.0 · LGPL · MIT
+    - generic [ref=e120]:
+      - heading "Servicios externos gratis" [level=3] [ref=e123]
+      - paragraph [ref=e124]: Gemini (copy y lectura del manual de marca en PDF), Notion (formulario de onboarding y aprobación), R2 (imágenes públicas, 10 GB gratis), Cloudflare Tunnel (publica Postiz en postiz.emprendeconvic.com) y Meta (publicación; App Review pendiente). Google Fonts verifica que cada tipografía cargue.
+      - generic [ref=e125]: API keys en .env
+    - generic [ref=e126]:
+      - heading "Sigue siendo manual" [level=3] [ref=e129]
+      - paragraph [ref=e130]: Revisar y aprobar el onboarding, conectar las redes de cada cliente en Postiz, stickers de historias, grabación de Reels, ediciones finas en Kdenlive o Shotcut (gratis, GPL) y los cambios que pida el cliente en Notion.
+      - generic [ref=e131]: human-in-the-loop
+  - generic [ref=e132]:
+    - generic [ref=e133]: Agente de IA para Redes Sociales · Arquitectura open source
+    - generic [ref=e134]: Noviembre 2026

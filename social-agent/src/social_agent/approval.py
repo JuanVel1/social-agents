@@ -61,6 +61,8 @@ class NotionBoard:
                 f"de Instagram, añade el sticker y cambia el Estado a Programado. Sticker: {c.sticker or '—'}"))
         if piece.type == "reel_script" and c:
             children.append(_paragraph(c.script))
+        if piece.photo.startswith("generadas/"):  # photos.is_generated, sin importar rembg aquí
+            children.append(_paragraph("Imagen generada con IA a partir de fotos de la marca."))
 
         properties = {
             "Pieza": {"title": _text(c.headline if c else piece.topic)},
@@ -104,6 +106,27 @@ class NotionBoard:
             if not data.get("has_more"):
                 return results
             cursor = data["next_cursor"]
+
+    def rows(self, key_prefix: str) -> dict[str, tuple[str, str]]:
+        """{ID: (page_id, Estado)} de las filas cuyo ID empieza por key_prefix (p. ej. "cliente/2026-12/")."""
+        body: dict = {"filter": {"property": "ID", "rich_text": {"starts_with": key_prefix}}}
+        rows: dict[str, tuple[str, str]] = {}
+        while True:
+            response = self.http.post(f"/databases/{self.database_id}/query", json=body)
+            response.raise_for_status()
+            data = response.json()
+            for page in data["results"]:
+                props = page["properties"]
+                key = "".join(t["plain_text"] for t in props["ID"]["rich_text"])
+                rows[key] = (page["id"], (props["Estado"]["select"] or {}).get("name", ""))
+            if not data.get("has_more"):
+                return rows
+            body["start_cursor"] = data["next_cursor"]
+
+    def archive(self, page_id: str) -> None:
+        """Manda la fila a la papelera de Notion (se puede restaurar desde ahí)."""
+        response = self.http.patch(f"/pages/{page_id}", json={"archived": True})
+        response.raise_for_status()
 
     def mark_scheduled(self, page_id: str, postiz_ref: str) -> None:
         response = self.http.patch(f"/pages/{page_id}", json={"properties": {

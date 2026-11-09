@@ -50,7 +50,7 @@ class PostizClient:
         posts = []
         for network, integration_id in brand.postiz_integrations.items():
             settings: dict = {"__type": network}
-            if network == "instagram":
+            if network.startswith("instagram"):  # instagram o instagram-standalone
                 settings["post_type"] = "post"
             posts.append({
                 "integration": {"id": integration_id},

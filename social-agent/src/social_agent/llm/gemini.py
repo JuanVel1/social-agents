@@ -11,6 +11,7 @@ from google import genai
 from google.genai import errors, types
 from pydantic import ValidationError
 
+from .. import progress
 from ..config import Settings
 from .base import Attachment, NoQuotaError, T, Tier
 
@@ -35,7 +36,8 @@ class RateLimiter:
         if len(self.calls) >= self.max:
             delay = 60 - (now - self.calls[0])
             log.info("Límite de %s solicitudes/min: esperando %.1f s", self.max, delay)
-            self.sleep(delay)
+            with progress.waiting(f"Límite de {self.max} solicitudes por minuto", delay):
+                self.sleep(delay)
             self.calls.popleft()
         self.calls.append(self.clock())
 
@@ -44,18 +46,23 @@ RETRYABLE = (429, 500, 503)
 
 
 class GeminiProvider:
-    def __init__(self, settings: Settings, client=None, sleep=time.sleep):
+    def __init__(self, settings: Settings, client=None, sleep=time.sleep, backup=None):
         if not settings.gemini_api_key:
             raise RuntimeError("Falta GEMINI_API_KEY en .env (créala en aistudio.google.com)")
-        # Sin reintentos internos del SDK: los maneja _call para poder cambiar de modelo.
-        self.client = client or genai.Client(
-            api_key=settings.gemini_api_key,
-            http_options=types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=1)),
-        )
+        # Sin reintentos internos del SDK: los maneja _call para poder cambiar de modelo y de clave.
+        options = types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=1))
+        self.client = client or genai.Client(api_key=settings.gemini_api_key, http_options=options)
+        # Clave de respaldo (GEMINI_API_KEY_RESPALD): se usa en cuanto la principal falla con un modelo.
+        if backup is None and client is None and settings.gemini_api_key_backup:
+            backup = genai.Client(api_key=settings.gemini_api_key_backup, http_options=options)
+        self.keys: list[tuple[str, object, RateLimiter]] = [
+            ("principal", self.client, RateLimiter(settings.gemini_max_rpm))]
+        if backup is not None:
+            self.keys.append(("respaldo", backup, RateLimiter(settings.gemini_max_rpm)))
         self.models = {"quality": settings.gemini_model_quality, "bulk": settings.gemini_model_bulk}
         self.fallbacks = settings.gemini_fallback_models
         self.image_model = settings.gemini_image_model
-        self.limiter = RateLimiter(settings.gemini_max_rpm)
+        self.limiter = self.keys[0][2]
         self.sleep = sleep
 
     def generate(self, prompt: str, schema: type[T], *, tier: Tier = "quality", system: str = "",
@@ -102,42 +109,59 @@ class GeminiProvider:
         raise RuntimeError(f"{self.image_model} no devolvió imagen (posible bloqueo de seguridad)")
 
     def _call(self, model: str, contents, config: types.GenerateContentConfig, fallbacks: bool = True):
-        """Dos intentos por modelo; si sigue saturado (503) o sin cuota (429), pasa al siguiente."""
-        candidates = [model] + ([m for m in self.fallbacks if m != model] if fallbacks else [])
+        """Por cada modelo, primero la clave principal y, si falla (429 sin cuota, 503 saturado, corte de
+        red), la de respaldo al instante; solo se espera cuando ninguna clave respondió. Dos pasadas por
+        modelo antes de pasar al siguiente."""
+        models = [model] + ([m for m in self.fallbacks if m != model] if fallbacks else [])
+        keys = self.keys
+        if any(isinstance(part, types.File) for part in (contents if isinstance(contents, list) else [])):
+            keys = keys[:1]  # los archivos subidos por la File API solo existen para la clave principal
+        candidates = {(label, name) for name in models for label, _, _ in keys}
         last: Exception | None = None
-        no_quota: set[str] = set()
+        no_quota: set[tuple[str, str]] = set()
         for rnd in range(3):
-            for name in candidates:
+            for name in models:
                 for attempt in range(2):
-                    if name in no_quota:
+                    tried = False
+                    for label, client, limiter in keys:
+                        if (label, name) in no_quota:
+                            continue
+                        tried = True
+                        who = name if label == "principal" else f"{name} (clave de respaldo)"
+                        limiter.wait()
+                        progress.llm_call(who)
+                        try:
+                            response = client.models.generate_content(model=name, contents=contents, config=config)
+                            if name != model:
+                                log.info("Respondió el modelo de respaldo %s", who)
+                            elif label != "principal":
+                                log.info("Respondió %s", who)
+                            return response
+                        except (errors.APIError, httpx.TransportError) as exc:
+                            # Cortes de red (conexión anulada, DNS) se reintentan igual que un 503.
+                            code = getattr(exc, "code", type(exc).__name__)
+                            if isinstance(exc, errors.APIError) and code not in RETRYABLE:
+                                raise
+                            last = exc
+                            if code == 429 and "limit: 0" in str(exc):
+                                # Cuota cero: el modelo no está en la capa gratuita; esperar no sirve.
+                                no_quota.add((label, name))
+                                log.warning("%s no tiene cuota con la clave %s", name, label)
+                                continue
+                            log.warning("%s respondió %s (intento %s)", who, code, attempt + 1)
+                    if not tried:
                         break
-                    self.limiter.wait()
-                    try:
-                        response = self.client.models.generate_content(model=name, contents=contents, config=config)
-                        if name != model:
-                            log.info("Respondió el modelo de respaldo %s", name)
-                        return response
-                    except (errors.APIError, httpx.TransportError) as exc:
-                        # Cortes de red (conexión anulada, DNS) se reintentan igual que un 503.
-                        code = getattr(exc, "code", type(exc).__name__)
-                        if isinstance(exc, errors.APIError) and code not in RETRYABLE:
-                            raise
-                        last = exc
-                        if code == 429 and "limit: 0" in str(exc):
-                            # Cuota cero: el modelo no está en la capa gratuita; esperar no sirve.
-                            no_quota.add(name)
-                            log.warning("%s no tiene cuota con esta clave", name)
-                            break
-                        log.warning("%s respondió %s (intento %s)", name, code, attempt + 1)
-                        if attempt == 0:
+                    if attempt == 0:
+                        with progress.waiting(f"{name} no respondió: reintento", 10):
                             self.sleep(10)
-            if no_quota >= set(candidates):
-                raise NoQuotaError(f"{', '.join(candidates)} sin cuota con esta clave: activa la facturación "
+            if no_quota >= candidates:
+                raise NoQuotaError(f"{', '.join(models)} sin cuota con esta clave: activa la facturación "
                                    "del proyecto en aistudio.google.com") from last
             if rnd < 2:
                 wait = 60 * (rnd + 1)
                 log.warning("Todos los modelos ocupados; nueva ronda en %s s", wait)
-                self.sleep(wait)
+                with progress.waiting("Todos los modelos ocupados: nueva ronda", wait):
+                    self.sleep(wait)
         raise last
 
     def list_models(self) -> list[str]:

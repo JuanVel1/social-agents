@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel del agente</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237c6cff' stroke-width='4'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%232fbf71'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><span></span></div>
+        <div>
+          <div class="brand-title">Agente de redes</div>
+          <div class="brand-sub">Panel de ejecuciones</div>
+        </div>
+        <button class="icon-btn" id="theme-toggle" title="Cambiar tema" aria-label="Cambiar tema">
+          <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
+        </button>
+        <button class="icon-btn" id="side-hide" title="Ocultar la lista (más espacio)" aria-label="Ocultar la lista">
+          <svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M9 4v16M15 9l-3 3 3 3"/></svg>
+        </button>
+      </div>
+      <button class="btn primary block" id="new-run">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Nueva ejecución
+      </button>
+      <div class="filters" role="tablist">
+        <button class="chip active" data-filter="all">Todas</button>
+        <button class="chip" data-filter="active">En curso</button>
+        <button class="chip" data-filter="error">Con error</button>
+      </div>
+      <div class="run-list" id="run-list"></div>
+      <div class="conn" id="conn"><span class="conn-dot"></span><span class="conn-text">Conectando…</span></div>
+    </aside>
+
+    <main class="main">
+      <button class="icon-btn side-toggle" id="side-show" title="Mostrar la lista de ejecuciones" aria-label="Mostrar la lista">
+        <svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M9 4v16M13 9l3 3-3 3"/></svg>
+      </button>
+      <header class="run-head" id="run-head">
+        <div class="empty-head">
+          <h1>Sin ejecuciones todavía</h1>
+          <p>Lanza una desde <strong>Nueva ejecución</strong> o desde la terminal (<code>social-agent plan …</code>): aparecerá aquí en vivo.</p>
+        </div>
+      </header>
+      <section class="graph-wrap">
+        <div class="graph" id="graph">
+          <svg class="edges" id="edges" aria-hidden="true"></svg>
+        </div>
+      </section>
+    </main>
+
+    <aside class="detail" id="detail">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="step">Paso</button>
+        <button class="tab" data-tab="run">Ejecución</button>
+        <button class="tab" data-tab="log">Proceso</button>
+        <label class="follow" title="Mostrar siempre el paso en curso">
+          <input type="checkbox" id="follow" checked> Seguir
+        </label>
+      </div>
+      <div class="detail-body" id="detail-body"></div>
+    </aside>
+  </div>
+
+  <div class="modal" id="modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <form class="modal-card" id="launch-form" autocomplete="off">
+      <div class="modal-head">
+        <h2>Nueva ejecución</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Cerrar">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="cmd-grid" id="cmd-grid"></div>
+      <div class="fields" id="fields"></div>
+      <div class="fake-box">
+        <label class="switch">
+          <input type="checkbox" id="fake-llm">
+          <span class="switch-ui"></span>
+          <span>LLM falso <small>(demo: sin red ni cuota)</small></span>
+        </label>
+        <label class="delay" id="delay-wrap">
+          Latencia simulada <output id="delay-out">1.2 s</output>
+          <input type="range" id="fake-delay" min="0" max="5" step="0.1" value="1.2">
+        </label>
+      </div>
+      <p class="warn" id="launch-warn" hidden></p>
+      <p class="form-error" id="launch-error" hidden></p>
+      <div class="modal-foot">
+        <code class="preview" id="cmd-preview"></code>
+        <button type="submit" class="btn primary" id="launch-btn">
+          <svg viewBox="0 0 24 24"><path d="M7 4l12 8-12 8z"/></svg>
+          Lanzar
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="lightbox" id="lightbox" hidden>
+    <img id="lightbox-img" alt="">
+    <div class="lightbox-cap" id="lightbox-cap"></div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="/static/vendor/gsap.min.js"></script>
+  <script src="/static/icons.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

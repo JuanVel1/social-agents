@@ -9,7 +9,7 @@ Formulario de onboarding en Notion (+ manual PDF)
 clients/<slug>/brand.yaml + logo
         │
         ▼  día 20
-social-agent plan  →  Gemini (temas, copy, hashtags)  →  Playwright (PNG)  →  Notion (Pendiente)
+social-agent plan  →  Gemini (temas, copy, hashtags, moodboard de Pinterest)  →  Playwright (PNG)  →  Notion (Pendiente)
                                                                                    │ el cliente aprueba
 social-agent publish (cada minuto) ←─────────────────────────────────────────  Notion (Aprobado)
         └→ Postiz programa en IG + FB  →  Notion (Programado)
@@ -74,18 +74,17 @@ No arranques el túnel con `docker run`: queda fuera de la red de Postiz y Cloud
 | Postiz + túnel | Docker con el servicio `cloudflared` dentro del compose (token en `postiz-docker-compose/.env`). Publicado en https://postiz.emprendeconvic.com |
 | Medios | Cloudflare R2, bucket `postiz-media`, URL pública https://media.emprendeconvic.com |
 | App de Meta "Bot" | ID `1278757044404022`, en el portafolio **Emprende con Vic**. Casos de uso de página y de API de Instagram (inicio de sesión de Instagram). Juan Vel con control total asignado desde Business Settings |
-| Canales en Postiz | Facebook Page **Vic.mercadeo** e **Instagram (Standalone)** @vic.mercadeo |
+| Canales en Postiz | Facebook Page **Vic.mercadeo**, **Instagram (Standalone)** @vic.mercadeo y **Pinterest** emprendeconvic (acceso Trial) conectado solo para leer el moodboard |
 | Notion | Base de aprobación (`NOTION_DATABASE_ID`) y base **Onboarding de clientes** con vista Formulario (`NOTION_ONBOARDING_DATABASE_ID`) |
 | Gemini | Capa gratuita; también lee manuales de marca en PDF |
-| Cliente `vic-mercadeo` | Activado desde el formulario de onboarding (Emprendeconvic, con un PDF del sitio como manual). Estilo **papel-pizarra** sacado de sus 31 publicaciones y **banco de 16 fotos** recortadas de su Instagram (leídas con la conexión de Postiz). Parrilla de prueba de noviembre 2026 en Notion (34 piezas en Pendiente, estilo anterior) y de diciembre en `out/` (estilo nuevo, sin subir) |
+| Cliente `vic-mercadeo` | Activado desde el formulario de onboarding (Emprendeconvic, con un PDF del sitio como manual). Estilo **papel-pizarra** sacado de sus 31 publicaciones, **banco de 16 fotos** recortadas de su Instagram (leídas con la conexión de Postiz). En Notion: parrilla de prueba de noviembre 2026 (34 piezas, estilo anterior) y de diciembre (36 piezas, regenerada el 9 de noviembre con `plan --reemplazar`), todas en Pendiente |
 | Onboarding | Probado de punta a punta con el manual oficial de CONMEBOL Sudamericana (fila de prueba en Notion; su carpeta se borró) |
 
 **Pendiente**
 
 - **Meta:** verificación del negocio, App Review de cada permiso y app en **Live**. Hasta entonces solo funcionan cuentas con rol en la app.
 - **Instagram ↔ página:** Meta no permite vincular @vic.mercadeo a una página ("No se puede establecer el enlace en este momento"); por eso se usa el conector Standalone. Las historias por API exigen cuenta de Empresa.
-- **Personaje 3D de Vic:** activado en `vic-mercadeo` (`style.character`), con Qwen-Image-Edit en Hugging Face (gratis, pocas imágenes al día). `serve` genera las 3 variantes del maestro a partir de la foto de estudio cuando hay cuota de GPU. Falta elegir la variante oficial (`social-agent personaje elegir`) y dejar que se llene el banco de 24 poses; después, `rediseñar` la parrilla de diciembre (36 piezas en Pendiente). Las fotos realistas con Gemini (`generate_photos`) siguen desactivadas: `gemini-3-pro-image` no tiene cuota gratuita.
-- **Pinterest:** acceso de prueba denegado; ver [`social-agent/README.md`](social-agent/README.md#pinterest-pendiente).
+- **Pinterest (moodboard):** canal conectado en Postiz (cuenta **emprendeconvic**, acceso Trial) y configurado en `vic-mercadeo` como **moodboard**, no como canal de publicación (paso 03 del *Documento de Configuración*): tablero **Almacenamiento rápido** (`1104015364845328485`), con 9 pines de referencia ya analizados (`clients/vic-mercadeo/moodboard.json`). Para actualizarlo, guarda más pines en ese tablero: el día 20 se relee solo, o a mano con `social-agent moodboard --client vic-mercadeo`. Ver [`social-agent/README.md`](social-agent/README.md#pinterest-moodboard-investigación-visual).
 - **Primera publicación real:** aprobar una pieza en Notion y comprobar que sale en Instagram y Facebook.
 - **Clientes nuevos:** conectar sus redes en Postiz y copiar los IDs con `social-agent integrations` sigue siendo manual.
 - **Sitio web:** la página `/es/legal` muestra `legal.pageTitle` sin traducir (afecta revisiones de Pinterest y Meta).

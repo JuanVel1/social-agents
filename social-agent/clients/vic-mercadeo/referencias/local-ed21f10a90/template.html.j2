@@ -1,0 +1,124 @@
+{% extends "referencia_base.html.j2" %}
+{% block style %}
+  body {
+    background-color: var(--background);
+    background-image: 
+      radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--accent) 30%, white) 0%, transparent 70%),
+      linear-gradient(135deg, rgba(22, 164, 200, 0.08) 25%, transparent 25%), 
+      linear-gradient(225deg, rgba(22, 164, 200, 0.08) 25%, transparent 25%), 
+      linear-gradient(45deg, rgba(22, 164, 200, 0.08) 25%, transparent 25%), 
+      linear-gradient(315deg, rgba(22, 164, 200, 0.08) 25%, transparent 25%);
+    background-size: 100% 100%, 48px 48px, 48px 48px, 48px 48px, 48px 48px;
+    background-position: 0 0, 0 24px, 0 24px, 0 0, 0 0;
+    color: var(--text);
+    overflow: hidden;
+  }
+  .handle {
+    color: var(--secondary);
+    font-weight: 700;
+    font-family: var(--body);
+    font-size: 24px;
+    letter-spacing: 1px;
+    top: 70px !important;
+    right: 70px !important;
+  }
+  .top-bar {
+    position: absolute;
+    top: 70px;
+    left: 70px;
+    right: 360px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 5;
+  }
+  .kicker {
+    font-family: var(--body);
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--secondary);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .kicker-line {
+    height: 2px;
+    width: 50px;
+    background: var(--secondary);
+    flex-shrink: 0;
+  }
+  .content-box {
+    position: absolute;
+    top: 140px;
+    left: 70px;
+    right: 70px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    z-index: 4;
+  }
+  .title {
+    font-family: var(--display);
+    font-size: {{ '98px' if kind == 'story' else ('82px' if kind == 'slide' else '88px') }};
+    line-height: 0.95;
+    font-weight: 900;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: -1px;
+    max-width: {{ '920px' if kind == 'slide' else '640px' }};
+  }
+  .description {
+    font-family: var(--body);
+    font-size: 30px;
+    line-height: 1.4;
+    color: color-mix(in srgb, var(--text) 85%, white);
+    max-width: {{ '880px' if kind == 'slide' else '540px' }};
+    font-weight: 400;
+  }
+  .photo {
+    position: absolute;
+    bottom: 0;
+    right: 40px;
+    height: {{ '1050px' if kind == 'story' else '790px' }};
+    z-index: 2;
+    object-fit: contain;
+    filter: drop-shadow(0 15px 25px rgba(15, 23, 42, 0.12));
+  }
+  .slide-number {
+    position: absolute;
+    bottom: {{ '300px' if kind == 'story' else '80px' }};
+    right: 70px;
+    font-family: var(--display);
+    font-size: 150px;
+    font-weight: 900;
+    color: color-mix(in srgb, var(--primary) 30%, transparent);
+    line-height: 1;
+    z-index: 1;
+  }
+{% endblock %}
+{% block content %}
+  <div class="top-bar">
+    <span class="kicker">{% if kind == "slide" %}PASO {{ index }}{% else %}{{ f.kicker }}{% endif %}</span>
+    <div class="kicker-line"></div>
+  </div>
+
+  <div class="content-box">
+    {% if kind == "slide" %}
+      <h1 class="title">{{ slide.heading }}</h1>
+      <p class="description">{{ slide.body }}</p>
+    {% else %}
+      <h1 class="title">{{ f.titulo }}</h1>
+      <p class="description">{{ f.descripcion }}</p>
+    {% endif %}
+  </div>
+
+  {% if kind == "slide" %}
+    <div class="slide-number">0{{ index }}</div>
+  {% else %}
+    {% if photo %}
+      <img class="photo" src="{{ photo }}" alt="">
+    {% endif %}
+  {% endif %}
+{% endblock %}

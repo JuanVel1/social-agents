@@ -223,9 +223,9 @@ facebook             cmvu51wbt0003o58xdrptyrnu  Vic.mercadeo
 
 Si responde **401**, la clave es de otra instalación o usuario de Postiz: genera una nueva en *Settings → Public API*.
 
-## 6.1 Pinterest (pendiente)
+## 6.1 Pinterest (moodboard, acceso Trial)
 
-El compose tiene `PINTEREST_CLIENT_ID` y `PINTEREST_CLIENT_SECRET` vacíos. Pinterest denegó el acceso de prueba a la app; cuando lo apruebe, cámbialos a `${PINTEREST_CLIENT_ID}` / `${PINTEREST_CLIENT_SECRET}` con las claves en `.env`, agrega en Pinterest la redirección `https://postiz.emprendeconvic.com/integrations/social/pinterest` y ejecuta `docker compose up -d postiz`. Detalles y qué corregir en la solicitud: [`../social-agent/README.md`](../social-agent/README.md#pinterest-pendiente).
+Pinterest se usa como **moodboard**: el agente lee un tablero de referencias para sacar la dirección visual de la marca, sin publicar ahí. Por eso basta el acceso **Trial**. El compose toma `PINTEREST_CLIENT_ID` y `PINTEREST_CLIENT_SECRET` de `.env` (el ID de la aplicación y la clave secreta). En la app de Pinterest agrega la redirección `https://postiz.emprendeconvic.com/integrations/social/pinterest`, ejecuta `docker compose up -d postiz` y conecta el canal en Postiz (**Add Channel → Pinterest**). Configuración del agente: [`../social-agent/README.md`](../social-agent/README.md#pinterest-moodboard-investigación-visual).
 
 ## 7. Problemas que ya aparecieron
 

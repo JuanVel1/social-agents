@@ -2,6 +2,7 @@
 que Gemini los acepte como response_schema."""
 from __future__ import annotations
 
+import json
 from datetime import date
 from pathlib import Path
 from typing import Literal
@@ -27,11 +28,87 @@ class Style(BaseModel):
     photos: bool = False
     # Generar con IA una foto nueva de la persona para cada pieza, a partir del banco (requiere photos).
     generate_photos: bool = False
-    # Usar las poses del personaje 3D (fotos/personaje/, `social-agent personaje`) en vez de las fotos
-    # reales. Con esto, generate_photos no se aplica: las poses ya son imágenes generadas.
-    character: bool = False
-    # Foto real de la que sale el personaje (relativa a fotos/): `serve` crea las variantes del maestro.
-    character_photo: str = ""
+    # Si un pin del moodboard muestra una fotografía de una persona, su plantilla lleva una foto real del
+    # banco elegida por su pose. Las fotos se usan tal cual: solo se les quita el fondo.
+    real_photo_references: bool = False
+    # Generar con IA la imagen completa de cada pieza cuya referencia muestra una persona real (covers.py):
+    # el pin como composición y las fotos reales del banco como identidad. Usa GEMINI_IMAGE_MODEL (de pago).
+    ai_images: bool = False
+    # Rasgos fijos de la persona, en inglés, para los prompts de imagen (pelo, barba, piercings, tatuajes).
+    person: str = ""
+
+
+class Moodboard(BaseModel):
+    """Tablero de Pinterest con referencias visuales que alguien cura a mano (pines guardados)."""
+    pinterest: str = ""  # ID del canal de Pinterest en Postiz (de ahí sale el token, solo lectura)
+    board: str = ""      # ID numérico del tablero (`social-agent integrations` lo lista)
+
+
+class VisualGuide(BaseModel):
+    """Dirección visual que Gemini saca de los pines del moodboard."""
+    summary: str = ""
+    composition: list[str] = Field(default_factory=list)
+    color_and_light: list[str] = Field(default_factory=list)
+    imagery: list[str] = Field(default_factory=list)
+    graphic_elements: list[str] = Field(default_factory=list)
+    trends: list[str] = Field(default_factory=list)
+    avoid: list[str] = Field(default_factory=list)
+
+    def as_text(self) -> str:
+        parts = [self.summary] + [f"{label}: {'; '.join(items)}" for label, items in (
+            ("Composición", self.composition), ("Color y luz", self.color_and_light), ("Imágenes", self.imagery),
+            ("Recursos gráficos", self.graphic_elements), ("Tendencias", self.trends), ("Evitar", self.avoid))
+            if items]
+        return "\n".join(p for p in parts if p)
+
+
+class RefField(BaseModel):
+    name: str          # identificador en minúsculas: titulo, mensaje_1, etiqueta_2...
+    description: str   # qué va en el hueco
+    max_chars: int
+
+
+class ReferenceDesign(BaseModel):
+    """Lo que Gemini saca de un pin: la idea, cómo llevarla a la marca y la plantilla que la recrea."""
+    concept: str = ""          # la idea creativa del pin, sin nombrar a su autor
+    adaptation: str = ""       # cómo se aplica a la marca
+    season: str = ""           # temporada o fecha a la que está atada (navidad, mundial...) o vacío
+    background: str = "pizarra"  # papel o pizarra (los fondos del estilo de la marca)
+    photo: bool = False        # usa la imagen de la persona de la marca
+    photo_hint: str = ""       # qué pose o gesto pide la composición
+    photo_file: str = ""       # la pose del banco elegida (file exacto); la plantilla se dimensiona para ella
+    extra_font: str = ""       # familia de Google Fonts con el carácter tipográfico del pin (var(--extra))
+    fields: list[RefField] = Field(default_factory=list)
+    example: list[FieldValue] = Field(default_factory=list)
+    template: str = ""         # plantilla Jinja que extiende base.html.j2
+    # Prompt detallado para generar la imagen completa con IA, con un hueco [[campo]] por texto (covers.py).
+    image_prompt: str = ""
+
+
+class PinSubject(BaseModel):
+    """Si el sujeto de un pin es una fotografía de una persona y qué foto real del banco hace su papel."""
+    realistic_person: bool = False
+    pose: str = ""        # gesto y encuadre de la persona del pin
+    photo_file: str = ""  # file exacto del catálogo de fotos reales, o vacío
+
+
+class ImagePrompt(BaseModel):
+    prompt: str = ""
+
+
+class ReferenceReview(BaseModel):
+    ok: bool = False
+    issues: str = ""
+
+
+class ReferenceChoice(BaseModel):
+    slot_id: str
+    reference: str = ""  # id de la referencia o vacío
+    topic: str = ""      # el tema ajustado a la idea de la referencia
+
+
+class ReferenceChoices(BaseModel):
+    choices: list[ReferenceChoice]
 
 
 class Brand(BaseModel):
@@ -54,14 +131,27 @@ class Brand(BaseModel):
     logo: str | None = None
     handle: str | None = None
     plan: Literal["plan1", "plan2"] = "plan1"
-    # Canales de Postiz del cliente: {"instagram": "<integration id>", "facebook": "<id>"}
+    # Canales de Postiz del cliente: {"instagram": "<integration id>", "facebook": "<id>", "pinterest": "<id>"}
     postiz_integrations: dict[str, str] = Field(default_factory=dict)
+    # Pinterest: ID numérico del tablero donde van los pines (`social-agent integrations` lo lista) y el
+    # enlace al que lleva cada pin. Sin tablero, Pinterest se omite y el resto de canales sigue igual.
+    pinterest_board: str = ""
+    website: str = ""
+    # Moodboard de Pinterest (paso "Investigación visual" del flujo): `social-agent moodboard` lo lee y
+    # guarda la dirección visual en clients/<slug>/moodboard.json, que llega a la parrilla.
+    moodboard: Moodboard = Field(default_factory=Moodboard)
+    visual_direction: str = Field(default="", exclude=True)  # se carga de moodboard.json
 
     @classmethod
     def load(cls, clients_dir: Path, slug: str) -> Brand:
         path = clients_dir / slug / "brand.yaml"
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        return cls(slug=slug, **data)
+        brand = cls(slug=slug, **data)
+        guide = clients_dir / slug / "moodboard.json"
+        if guide.exists():
+            brand.visual_direction = VisualGuide.model_validate(
+                json.loads(guide.read_text(encoding="utf-8")).get("guide", {})).as_text()
+        return brand
 
 
 class Slot(BaseModel):
@@ -88,6 +178,20 @@ class Slide(BaseModel):
     body: str
 
 
+class FieldValue(BaseModel):
+    name: str
+    value: str
+
+
+class FieldSet(BaseModel):
+    slot_id: str
+    fields: list[FieldValue]
+
+
+class FieldBatch(BaseModel):
+    items: list[FieldSet]
+
+
 class PieceContent(BaseModel):
     slot_id: str
     headline: str
@@ -100,6 +204,8 @@ class PieceContent(BaseModel):
     cta: str
     sticker: str = ""
     script: str = ""
+    # Textos de los huecos de la plantilla de referencia (si la pieza adapta un pin del moodboard).
+    fields: list[FieldValue] = Field(default_factory=list)
 
 
 class WeekContent(BaseModel):
@@ -195,6 +301,10 @@ class Piece(BaseModel):
     image_urls: list[str] = Field(default_factory=list)
     postiz_media: list[dict] = Field(default_factory=list)
     photo: str = ""  # archivo del banco de fotos del cliente que lleva el diseño
+    generated: str = ""  # imagen completa generada con IA (covers.py); reemplaza a la de la plantilla
+    # Referencia del moodboard que adapta la pieza (carpeta en clients/<slug>/referencias/) y su origen.
+    reference: str = ""
+    reference_url: str = ""
 
     @property
     def caption_full(self) -> str:

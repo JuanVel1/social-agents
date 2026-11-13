@@ -305,3 +305,35 @@ def test_redesign_month_replaces_only_pending_rows(tmp_path, monkeypatch):
     assert plan.pieces[1].id not in added and len(added) == 3  # la pendiente y las que no tenían fila
     saved = pipeline.MonthPlan.model_validate_json(pipeline.plan_path(settings, "demo", "2026-12").read_text(encoding="utf-8"))
     assert saved.pieces[0].photo.startswith("generadas/")
+
+
+def test_import_photos_adds_real_photos_untouched_and_skips_repeats(tmp_path):
+    from social_agent.photos import PHOTO, import_photos, loose_images
+
+    folder = tmp_path / "demo" / "fotos"
+    folder.mkdir(parents=True)
+    photo = folder / "victor.jpg"
+    Image.new("RGB", (40, 60), (30, 90, 200)).save(photo, format="JPEG")
+    cut = folder / "recortada.png"  # ya viene con fondo transparente: no pasa por el recorte
+    canvas = Image.new("RGBA", (40, 60), (0, 0, 0, 0))
+    canvas.paste(Image.new("RGBA", (20, 60), (200, 30, 30, 255)), (10, 0))
+    canvas.save(cut)
+    assert loose_images(tmp_path, "demo") == [cut, photo]
+
+    cutouts = []
+    result = import_photos(tmp_path, _brand(), FakeProvider(), [cut, photo],
+                           cutter=lambda data: cutouts.append(data) or _png())
+    assert len(cutouts) == 1 and result["nuevas"] == 2 and result["ya_estaban"] == 0
+
+    bank = load_bank(tmp_path, "demo")
+    assert all(p["kind"] == PHOTO and p["source"] == "local" for p in bank["photos"])
+    assert {p["original"] for p in bank["photos"]} == {"victor.jpg", "recortada.png"}
+    own = next(p for p in bank["photos"] if p["original"] == "recortada.png")
+    saved = Image.open(folder / own["file"]).convert("RGBA")
+    assert saved.size == (20, 60) and saved.getpixel((0, 0)) == (200, 30, 30, 255)  # mismos píxeles, sin voltear
+    assert len(usable_photos(tmp_path, "demo")) == result["utiles"]
+    assert loose_images(tmp_path, "demo") == [cut, photo]  # los originales no se borran...
+
+    again = import_photos(tmp_path, _brand(), FakeProvider(), loose_images(tmp_path, "demo"),
+                          cutter=lambda data: pytest.fail("ya importada"))
+    assert again["nuevas"] == 0 and again["ya_estaban"] == 2  # ...pero no se importan dos veces

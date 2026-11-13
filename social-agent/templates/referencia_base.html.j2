@@ -1,0 +1,35 @@
+{#- Base de las plantillas que adaptan un pin del moodboard (references.py).
+    No impone fondo ni garabatos: cada plantilla pinta el estilo de su pin con la paleta de la marca.
+    Variables: width, height, kind (post | story | slide), colors, fonts, extra_font, handle, brand_name. -#}
+{%- set display = fonts.get('display') or fonts.heading -%}
+{%- set hand = fonts.get('hand') or 'Gochi Hand' -%}
+{%- set families = [display, fonts.body, hand] + ([extra_font] if extra_font else []) -%}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?{% for f in families | unique %}family={{ f | replace(' ', '+') }}{% if f == fonts.body %}:wght@400;500;700;800{% endif %}&{% endfor %}display=swap">
+<style>
+  :root {
+    {%- for name, value in colors.items() %}
+    --{{ name }}: {{ value }};
+    {%- endfor %}
+    --display: '{{ display }}', Impact, sans-serif;
+    --body: '{{ fonts.body }}', 'Segoe UI', Arial, sans-serif;
+    --hand: '{{ hand }}', 'Comic Sans MS', cursive;
+    --extra: '{{ extra_font or display }}', Georgia, serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: {{ width }}px; height: {{ height }}px; overflow: hidden; }
+  body { position: relative; font-family: var(--body); background: #ffffff; color: #111111; }
+  .handle { position: absolute; top: 56px; right: 70px; z-index: 50; font: 700 22px var(--body);
+            letter-spacing: .18em; text-transform: uppercase; }
+  .photo { position: absolute; bottom: 0; width: auto; }
+  {% block style %}{% endblock %}
+</style>
+</head>
+<body class="{{ kind }}">
+{% block content %}{% endblock %}
+<div class="handle">{{ handle or brand_name }}</div>
+</body>
+</html>

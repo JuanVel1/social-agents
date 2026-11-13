@@ -1,0 +1,51 @@
+{
+ "ok": true,
+ "title": "",
+ "url": "",
+ "attempts": 2,
+ "issues": "",
+ "real_photo": true,
+ "design": {
+  "concept": "Diseño editorial de marca personal con titulares condensados de alto impacto, patrón geométrico sutil y fotografía del profesional con laptop.",
+  "adaptation": "Recreación de la plantilla de Emprendeconvic utilizando la paleta institucional (azules y celestes), tipografía display potente, patrón de rombos de fondo y foto de Vic sosteniendo su laptop.",
+  "season": "",
+  "background": "Fondo blanco pulcro con un patrón geométrico continuo de rombos en tonos celestes suaves.",
+  "photo": true,
+  "photo_hint": "Hombre sonriente con camiseta negra sosteniendo una laptop frente a él.",
+  "photo_file": "local-369aa3954d.png",
+  "extra_font": "",
+  "fields": [
+   {
+    "name": "kicker",
+    "description": "Nombre de la metodología o categoría del contenido",
+    "max_chars": 25
+   },
+   {
+    "name": "titulo",
+    "description": "Titular principal de alto impacto con promesa o resultado",
+    "max_chars": 40
+   },
+   {
+    "name": "descripcion",
+    "description": "Explicación breve de la estrategia o propuesta de valor",
+    "max_chars": 110
+   }
+  ],
+  "example": [
+   {
+    "name": "kicker",
+    "value": "MÉTODO EMPRENDECONVIC"
+   },
+   {
+    "name": "titulo",
+    "value": "ESCALA TU NEGOCIO UN 35%"
+   },
+   {
+    "name": "descripcion",
+    "value": "Optimización de presencia online y automatización con IA para dueños de negocio."
+   }
+  ],
+  "template": "{% extends \"referencia_base.html.j2\" %}\n{% block style %}\n  body {\n    background-color: var(--background);\n    background-image: \n      radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--accent) 30%, white) 0%, transparent 70%),\n      linear-gradient(135deg, rgba(22, 164, 200, 0.08) 25%, transparent 25%), \n      linear-gradient(225deg, rgba(22, 164, 200, 0.08) 25%, transparent 25%), \n      linear-gradient(45deg, rgba(22, 164, 200, 0.08) 25%, transparent 25%), \n      linear-gradient(315deg, rgba(22, 164, 200, 0.08) 25%, transparent 25%);\n    background-size: 100% 100%, 48px 48px, 48px 48px, 48px 48px, 48px 48px;\n    background-position: 0 0, 0 24px, 0 24px, 0 0, 0 0;\n    color: var(--text);\n    overflow: hidden;\n  }\n  .handle {\n    color: var(--secondary);\n    font-weight: 700;\n    font-family: var(--body);\n    font-size: 24px;\n    letter-spacing: 1px;\n    top: 70px !important;\n    right: 70px !important;\n  }\n  .top-bar {\n    position: absolute;\n    top: 70px;\n    left: 70px;\n    right: 360px;\n    display: flex;\n    align-items: center;\n    gap: 16px;\n    z-index: 5;\n  }\n  .kicker {\n    font-family: var(--body);\n    font-size: 24px;\n    font-weight: 800;\n    color: var(--secondary);\n    text-transform: uppercase;\n    letter-spacing: 1.5px;\n    white-space: nowrap;\n    overflow: hidden;\n    text-overflow: ellipsis;\n  }\n  .kicker-line {\n    height: 2px;\n    width: 50px;\n    background: var(--secondary);\n    flex-shrink: 0;\n  }\n  .content-box {\n    position: absolute;\n    top: 140px;\n    left: 70px;\n    right: 70px;\n    display: flex;\n    flex-direction: column;\n    gap: 20px;\n    z-index: 4;\n  }\n  .title {\n    font-family: var(--display);\n    font-size: {{ '98px' if kind == 'story' else ('82px' if kind == 'slide' else '88px') }};\n    line-height: 0.95;\n    font-weight: 900;\n    color: var(--text);\n    text-transform: uppercase;\n    letter-spacing: -1px;\n    max-width: {{ '920px' if kind == 'slide' else '640px' }};\n  }\n  .description {\n    font-family: var(--body);\n    font-size: 30px;\n    line-height: 1.4;\n    color: color-mix(in srgb, var(--text) 85%, white);\n    max-width: {{ '880px' if kind == 'slide' else '540px' }};\n    font-weight: 400;\n  }\n  .photo {\n    position: absolute;\n    bottom: 0;\n    right: 40px;\n    height: {{ '1050px' if kind == 'story' else '790px' }};\n    z-index: 2;\n    object-fit: contain;\n    filter: drop-shadow(0 15px 25px rgba(15, 23, 42, 0.12));\n  }\n  .slide-number {\n    position: absolute;\n    bottom: {{ '300px' if kind == 'story' else '80px' }};\n    right: 70px;\n    font-family: var(--display);\n    font-size: 150px;\n    font-weight: 900;\n    color: color-mix(in srgb, var(--primary) 30%, transparent);\n    line-height: 1;\n    z-index: 1;\n  }\n{% endblock %}\n{% block content %}\n  <div class=\"top-bar\">\n    <span class=\"kicker\">{% if kind == \"slide\" %}PASO {{ index }}{% else %}{{ f.kicker }}{% endif %}</span>\n    <div class=\"kicker-line\"></div>\n  </div>\n\n  <div class=\"content-box\">\n    {% if kind == \"slide\" %}\n      <h1 class=\"title\">{{ slide.heading }}</h1>\n      <p class=\"description\">{{ slide.body }}</p>\n    {% else %}\n      <h1 class=\"title\">{{ f.titulo }}</h1>\n      <p class=\"description\">{{ f.descripcion }}</p>\n    {% endif %}\n  </div>\n\n  {% if kind == \"slide\" %}\n    <div class=\"slide-number\">0{{ index }}</div>\n  {% else %}\n    {% if photo %}\n      <img class=\"photo\" src=\"{{ photo }}\" alt=\"\">\n    {% endif %}\n  {% endif %}\n{% endblock %}",
+  "image_prompt": "Photorealistic editorial portrait, featuring the exact face and precise facial features of the specific man from the identity reference photos (clean-cut fade haircut, exact facial structure and nose shape, short trimmed dark beard, small nose ring, NO earrings, NO hand tattoos), wearing a tailored teal-blue suit, white shirt, burgundy bow tie, and white pocket square. He holds a black geometric-patterned folder featuring the \"Emprendeconvic\" logo and \"emprendeconvic.com\", looking at the camera with a subtle smile, perfectly matching the exact composition, pose and layout of the layout reference image. Outdoor background with purple flowering trees, overlaid with text reading \"[[kicker]]\", main title \"[[titulo]]\", body text \"[[descripcion]]\", and handle \"@vic.mercadeo\". Soft natural editorial lighting, 8k resolution."
+ }
+}

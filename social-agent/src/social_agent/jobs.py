@@ -5,6 +5,7 @@ from datetime import date, datetime
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
+from . import progress
 from .config import Settings
 from .llm.base import NoQuotaError
 from .pipeline import publish_approved, run_month
@@ -21,7 +22,11 @@ def clients(settings: Settings) -> list[str]:
     return sorted(p.name for p in settings.clients_dir.iterdir() if (p / "brand.yaml").exists() and p.name != "demo")
 
 
-def refresh_photos(settings: Settings, client: str) -> None:
+def runs_dir(settings: Settings):
+    return settings.out_dir / "_runs"
+
+
+def refresh_photos(settings: Settings, client: str, group: str = "") -> None:
     """Añade al banco las fotos de lo publicado este mes. Si falla, la parrilla sale con el banco que había."""
     from .llm import get_provider
     from .models import Brand
@@ -31,17 +36,43 @@ def refresh_photos(settings: Settings, client: str) -> None:
     if not brand.style.photos:
         return
     try:
-        refresh_bank(settings, brand, get_provider(settings))
+        with progress.run("fotos", runs_dir(settings), client=client, group=group):
+            refresh_bank(settings, brand, get_provider(settings))
     except Exception:
         log.exception("No se pudo actualizar el banco de fotos de %s", client)
 
 
+def refresh_moodboard(settings: Settings, client: str, group: str = "") -> None:
+    """Relee el moodboard de Pinterest. Si falla, la parrilla sale con la dirección visual que había."""
+    from .llm import get_provider
+    from .models import Brand
+    from .moodboard import refresh_moodboard as refresh
+
+    brand = Brand.load(settings.clients_dir, client)
+    if not brand.moodboard.board:
+        return
+    from .moodboard import refresh_pin_references
+
+    llm = get_provider(settings)
+    try:
+        with progress.run("moodboard", runs_dir(settings), client=client, group=group):
+            progress.skip("revalidar", "Solo con --revalidar")
+            refresh(settings, brand, llm)
+            # Los pines nuevos se convierten en plantillas de la marca antes de la parrilla.
+            refresh_pin_references(settings, Brand.load(settings.clients_dir, client), llm)
+    except Exception:
+        log.exception("No se pudo leer el moodboard de %s", client)
+
+
 def monthly_plans(settings: Settings) -> None:
     month = next_month(date.today())
+    group = f"parrilla-{month}-{datetime.now():%Y%m%d-%H%M}"
     for client in clients(settings):
-        refresh_photos(settings, client)
+        refresh_photos(settings, client, group)
+        refresh_moodboard(settings, client, group)
         try:
-            run_month(settings, client, month, dry_run=False)
+            with progress.run("plan", runs_dir(settings), args={"month": month}, client=client, group=group):
+                run_month(settings, client, month, dry_run=False)
         except Exception:
             log.exception("Falló la parrilla de %s para %s", client, month)
 
@@ -53,42 +84,18 @@ def onboarding_pass(settings: Settings) -> None:
 
     try:
         board = OnboardingBoard(settings.notion_token, settings.notion_onboarding_database_id)
-        result = run(board, settings.clients_dir, lambda: get_provider(settings))
+        with progress.run("onboarding run", runs_dir(settings), discard_if_empty=True):
+            result = run(board, settings.clients_dir, lambda: get_provider(settings))
         if any(result.values()):
             log.info("Onboarding: %s por revisar, %s clientes activados", result["por_revisar"], result["activos"])
     except Exception:
         log.exception("Falló la pasada de onboarding")
 
 
-def character_pass(settings: Settings) -> None:
-    """Avanza el personaje con la cuota de GPU que haya (la gratuita se recarga sola).
-
-    Sin maestro elegido: genera las variantes a partir de style.character_photo y espera a que alguien
-    elija una (`social-agent personaje elegir`). Con maestro: genera las poses que falten.
-    """
-    from .character import QwenEditor, character_dir, fill_poses, make_masters, master_path, pending_poses
-    from .llm import get_provider
-    from .models import Brand
-    from .photos import bank_dir, load_bank
-
-    for client in clients(settings):
-        brand = Brand.load(settings.clients_dir, client)
-        if not brand.style.character:
-            continue
-        editor = QwenEditor(settings.huggingface_token, settings.character_space)
-        try:
-            if not master_path(settings.clients_dir, client).exists():
-                photo = bank_dir(settings.clients_dir, client) / brand.style.character_photo
-                if brand.style.character_photo and photo.is_file():
-                    make_masters(settings.clients_dir, brand, photo, editor)
-                    log.info("Variantes del personaje de %s en %s: elige una con social-agent personaje elegir "
-                             "--client %s --variante <n>", client, character_dir(settings.clients_dir, client), client)
-            elif pending_poses(load_bank(settings.clients_dir, client)):
-                fill_poses(settings.clients_dir, brand, get_provider(settings), editor)
-        except NoQuotaError as exc:
-            log.info("Personaje de %s en pausa: %s", client, exc)
-        except Exception:
-            log.exception("Falló la tanda del personaje de %s", client)
+def publish_pass(settings: Settings) -> int:
+    """Pasada de publicación: en el panel solo queda si programó (o falló) algo."""
+    with progress.run("publish", runs_dir(settings), discard_if_empty=True):
+        return publish_approved(settings)
 
 
 def register_jobs(scheduler, settings: Settings) -> list[str]:
@@ -98,12 +105,9 @@ def register_jobs(scheduler, settings: Settings) -> list[str]:
     # (si una pasada tarda más que el intervalo, la siguiente se salta) y la primera al arrancar.
     every = {"trigger": "interval", "seconds": settings.approval_poll_seconds, "args": [settings],
              "max_instances": 1, "coalesce": True, "next_run_time": datetime.now()}
-    scheduler.add_job(publish_approved, id="publicar", **every)
+    scheduler.add_job(publish_pass, id="publicar", **every)
     if settings.notion_onboarding_database_id:
         scheduler.add_job(onboarding_pass, id="onboarding", **every)
-    if settings.huggingface_token:
-        scheduler.add_job(character_pass, "interval", hours=settings.character_poll_hours, args=[settings],
-                          id="personaje", max_instances=1, coalesce=True, next_run_time=datetime.now())
     return [job.id for job in scheduler.get_jobs()]
 
 

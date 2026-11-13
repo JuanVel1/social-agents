@@ -55,9 +55,19 @@ style:
   light_pillars: [Educativo]
   photos: true
   generate_photos: false  # foto nueva con IA por pieza (GEMINI_IMAGE_MODEL, de pago)
-  character: true          # personaje 3D animado: poses en fotos/personaje/ (social-agent personaje)
-  character_photo: personaje/referencia.jpeg
+  # Pines con la fotografía de una persona: su plantilla lleva la foto real del banco del mismo encuadre.
+  # Las fotos reales entran con `social-agent fotos --client vic-mercadeo --importar`.
+  real_photo_references: true
+  # Imagen completa con IA por pieza cuando la referencia muestra una persona real: el pin da la composición
+  # y las fotos reales la identidad. Cada referencia guarda su prompt en design.json (image_prompt).
+  ai_images: true
+  person: "clean-cut fade haircut, exact facial structure and nose shape, short trimmed dark beard, small nose ring, NO earrings, NO hand tattoos"
 logo: logo.svg
+website: https://emprendeconvic.com
 postiz_integrations:
   instagram-standalone: cmvu8hpyb0001p99v3pmu2uba
   facebook: cmvu51wbt0003o58xdrptyrnu
+# Pinterest como investigación visual (no se publica ahí): referencias guardadas en el tablero
+moodboard:
+  pinterest: cmwb0mrhh0001qj99xkwckkc6   # canal de Pinterest en Postiz (solo lectura)
+  board: "1104015364845328485"           # tablero "Almacenamiento rápido"

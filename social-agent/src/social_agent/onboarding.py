@@ -9,6 +9,7 @@ El cliente llena la vista Formulario de la base "Onboarding de clientes" (la cre
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
 import unicodedata
@@ -18,6 +19,7 @@ from typing import Callable
 import httpx
 import yaml
 
+from . import progress
 from .approval import API, _text, database_id_from
 from .llm.base import LLMProvider
 from .models import Brand, BrandIntake, ColorSpec
@@ -541,34 +543,47 @@ def run(board: OnboardingBoard, clients_dir: Path, llm_factory: Callable[[], LLM
         fetch: Callable[[str], bytes] = _download,
         font_exists: Callable[[str, str], bool] = google_font_exists) -> dict[str, int]:
     """Rellena las filas nuevas con su manual y activa las aprobadas. Devuelve cuántas de cada una."""
-    board.ensure_properties()
+    with progress.step("preparar"):
+        board.ensure_properties()
+        new_rows = board.rows("Nuevo")
     reviewed = 0
-    new_rows = board.rows("Nuevo")
     if new_rows:
-        llm, options = llm_factory(), board.options()
-        for page in new_rows:
-            try:
-                filled = autofill(board, page, llm, options, fetch, font_exists)
-            except Exception as exc:
-                log.exception("Falló el relleno con el manual de %s", page["id"])
-                board.update(page["id"], "Error", f"No se pudo leer el manual: {exc}")
-                continue
-            log.info("Onboarding %s: completado por IA %s", page["id"], filled or "nada")
-            reviewed += 1
+        with progress.step("nuevas", total=len(new_rows)):
+            llm, options = llm_factory(), board.options()
+            for page in new_rows:
+                try:
+                    filled = autofill(board, page, llm, options, fetch, font_exists)
+                except Exception as exc:
+                    log.exception("Falló el relleno con el manual de %s", page["id"])
+                    board.update(page["id"], "Error", f"No se pudo leer el manual: {exc}")
+                    progress.advance(item=page["id"], status="error", note=str(exc)[:200])
+                    continue
+                log.info("Onboarding %s: completado por IA %s", page["id"], filled or "nada")
+                reviewed += 1
+                progress.advance(item=page["id"], note=f"{filled or 'nada'}"[:200])
+    else:
+        progress.skip("nuevas", "No hay filas nuevas")
 
     activated = 0
-    for page in board.rows("Aprobado"):
-        try:
-            slug, notes = activate(page, clients_dir, fetch)
-        except OnboardingError as exc:
-            log.warning("Onboarding %s: %s", page["id"], exc)
-            board.update(page["id"], "Error", str(exc))
-            continue
-        except Exception as exc:
-            log.exception("Falló el onboarding de %s", page["id"])
-            board.update(page["id"], "Error", f"Error inesperado: {exc}")
-            continue
-        board.update(page["id"], "Activo", notes, slug=slug)
-        log.info("Cliente activo: clients/%s", slug)
-        activated += 1
+    approved = board.rows("Aprobado")
+    if not approved:
+        progress.skip("activar", "No hay filas aprobadas")
+    with (progress.step("activar", total=len(approved)) if approved else contextlib.nullcontext()):
+        for page in approved:
+            try:
+                slug, notes = activate(page, clients_dir, fetch)
+            except OnboardingError as exc:
+                log.warning("Onboarding %s: %s", page["id"], exc)
+                board.update(page["id"], "Error", str(exc))
+                progress.advance(item=page["id"], status="error", note=str(exc)[:200])
+                continue
+            except Exception as exc:
+                log.exception("Falló el onboarding de %s", page["id"])
+                board.update(page["id"], "Error", f"Error inesperado: {exc}")
+                progress.advance(item=page["id"], status="error", note=str(exc)[:200])
+                continue
+            board.update(page["id"], "Activo", notes, slug=slug)
+            log.info("Cliente activo: clients/%s", slug)
+            activated += 1
+            progress.advance(item=slug)
     return {"por_revisar": reviewed, "activos": activated}

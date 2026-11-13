@@ -82,9 +82,55 @@ Instalación, túnel de Cloudflare y R2 en [`../postiz-docker-compose/README.md`
 
 La API pública de Postiz permite unas 90 publicaciones creadas por hora. Si responde 401, la clave del `.env` es de otra instalación: genera una nueva en *Settings → Public API*.
 
-### Pinterest (pendiente)
+### Pinterest: moodboard (investigación visual)
 
-Postiz lo soporta (`PINTEREST_CLIENT_ID`/`SECRET`, redirect `https://postiz.emprendeconvic.com/integrations/social/pinterest`, permisos `boards:read`, `boards:write`, `pins:read`, `pins:write`, `user_accounts:read`), pero Pinterest **denegó el acceso de prueba** a la app `emprendeconvic Social Publisher` (ID 1632065). Antes de volver a pedirlo: sitio web `https://emprendeconvic.com` (no la URL de redirección), la redirección en su propio campo, una política de privacidad que cargue bien y mencione Pinterest, y el dominio reclamado en Pinterest. Cuando haya acceso, el agente necesita un `pinterest_board` (ID numérico del tablero) y recortar descripción (500) y carruseles (5 imágenes).
+En el flujo del agente (*Documento de Configuración*, paso 03), Pinterest es **curaduría visual y moodboards**, no un canal de publicación. Una persona, de la agencia o del cliente, guarda en un tablero de Pinterest los pines que sirven de referencia. El agente los lee y Gemini los convierte en una **dirección visual** para la marca: composición, color y luz, tipo de imagen, recursos gráficos, tendencias y qué evitar. Los colores y las tipografías de la marca mandan; las referencias aportan el resto, sin copiar imágenes.
+
+La guía se guarda en `clients/<slug>/moodboard.json` y llega a la parrilla dentro del brief de marca (`<visual_direction>`). Gemini la usa al escribir el campo `visual` de cada pieza, que sirve para elegir la foto o la pose y para generar imágenes. Si el tablero no cambió, no se vuelve a analizar. El día 20, `serve` relee el moodboard antes de la parrilla; si falla, sigue con la guía que había.
+
+Solo **lee** (`boards:read`, `pins:read`), así que funciona con el **acceso Trial** de la app (*aplicación para emprendeconvic*): no hace falta Standard access.
+
+1. En la app de [developers.pinterest.com](https://developers.pinterest.com/apps/), agrega la redirección `https://postiz.emprendeconvic.com/integrations/social/pinterest`. En `postiz-docker-compose/.env` completa `PINTEREST_CLIENT_ID` y `PINTEREST_CLIENT_SECRET`, ejecuta `docker compose up -d postiz` y conecta el canal en Postiz (**Add Channel → Pinterest**).
+2. `uv run social-agent integrations` lista el canal `pinterest` y sus **tableros con el ID numérico**. En `brand.yaml`:
+
+```yaml
+moodboard:
+  pinterest: <id del canal en Postiz>   # de ahí sale el token (solo lectura), como con Instagram
+  board: "<id numérico del tablero>"
+```
+
+3. `uv run social-agent moodboard --client <slug>` lee los 30 pines más recientes que tengan imagen (también portadas de video y la primera imagen de los pines con varias) y escribe la guía. Con `--forzar` la rehace aunque el tablero no haya cambiado.
+
+El token se toma del canal de Pinterest en la base de Postiz (`docker exec postiz-postgres psql …`, solo lectura), que lo renueva solo. Si prefieres no leerlo de ahí, pon en `.env` un token de la app como `PINTEREST_ACCESS_TOKEN` (*developers.pinterest.com → la app → Generar token*, con `boards:read` y `pins:read`; caduca y hay que renovarlo).
+
+#### Referencias: cada pin se convierte en el estilo de las piezas
+
+**Cada pin es un estilo de diseño** que la parrilla usa en sus piezas: posts, carruseles (portada y láminas) e historias. Por ejemplo, el pin de Papá Noel escribiendo por chat se convierte en un post de vic.mercadeo con ese chat, la decoración navideña y la composición del pin, pero con la paleta azul de la marca, sus textos y su foto en el teclado.
+
+1. **Plantilla:** Gemini mira el pin y escribe una plantilla Jinja que recrea **su estilo**: fondo, composición, jerarquía tipográfica y recursos gráficos (burbujas, tarjetas de app, collage, cintas, cuadrícula…), dibujados con CSS y SVG. Lo único que cambia es la **paleta**: los colores del pin se reemplazan por los de la marca y sus tonos. Hereda `templates/referencia_base.html.j2`, una base neutra que no impone el fondo papel/pizarra: solo carga las tipografías de la marca (más una de Google Fonts con el carácter del pin, `extra_font`), expone los colores como variables CSS (`--primary`, `--secondary`…) y pone la firma. La misma plantilla sirve para **tres formatos** según `kind`: `post` (1080×1350, también portada del carrusel), `story` (1080×1920, con una franja libre para el sticker) y `slide` (lámina interna del carrusel, con `slide.heading`, `slide.body`, `index` y `total`). Define sus **huecos de texto** (`fields`, con `max_chars`) y elige la pose del banco (`photo_file`) que hace el papel del sujeto del pin. No usa imágenes, logos ni textos del pin.
+2. **Prueba:** la plantilla se renderiza en los tres formatos con textos de ejemplo y pasa las pruebas automáticas (abajo). Después, Gemini compara el pin con una hoja de los tres formatos: estilo reconocible, paleta de la marca, texto legible y nada copiado. Si falla, la rehace una vez con esos problemas; si vuelve a fallar, queda descartada con el motivo en `design.json`.
+3. **Parrilla:** al planear el mes, Gemini reparte las referencias aprobadas entre **todas las piezas con diseño**. Hay menos referencias que piezas, así que se repiten de forma pareja, sin la misma en dos piezas seguidas, y las de temporada (Navidad, año nuevo, Mundial) solo en sus fechas. La pieza que quede sin elegir recibe la referencia menos usada que no sea de temporada. Al escribir la semana, Gemini rellena los huecos con textos de la marca. Cada pieza conserva la pose que le tocó si tiene el encuadre para el que se dimensionó la plantilla; si no, lleva la pose de la plantilla. Si una plantilla falla al renderizar, la pieza sale con papel-pizarra. En Notion, la pieza enlaza al pin de origen.
+
+**Pines con una persona real (opcional, `style.real_photo_references: true`):** antes de diseñar cada pin nuevo, Gemini mira si su sujeto es la *fotografía* de una persona. Si lo es, la plantilla lleva la **foto real** del banco del mismo encuadre y el gesto más parecido. La foto se usa tal cual, solo sin fondo; nunca se genera ni se retoca, así que la cara es la de la foto. En los pines con ilustraciones, objetos o animales, el diseño elige la foto del catálogo. Solo aplica a los pines que se diseñan de ahí en adelante (`--rehacer-referencias` lo aplicaría a todos) y, si el banco no tiene fotos reales útiles, no hace nada. En `design.json` queda `real_photo: true`.
+
+**Imagen completa con IA (opcional, `style.ai_images: true`):** cada referencia cuyo pin muestra una persona real guarda además un **prompt detallado** (`design.json → image_prompt`): la persona de la marca con la ropa, los objetos, la pose y la composición del pin, y un hueco `[[campo]]` por cada texto. Los rasgos fijos de la persona van en `style.person`. Al armar la parrilla (paso *Imágenes completas con IA*), cada pieza rellena los huecos con sus textos y `GEMINI_IMAGE_MODEL` genera la publicación entera, con el pin como referencia de composición y hasta 3 fotos reales del banco como identidad. Gemini revisa que los textos estén bien escritos (2 intentos); si no pasa, faltan textos o no hay cuota, la pieza sale con su plantilla. En los carruseles solo se genera la portada. Las imágenes quedan en `fotos/generadas/<mes>/` y se reutilizan mientras no cambien los textos. El prompt se puede retocar a mano en `design.json`. Es una generación de pago por pieza.
+
+Se guardan en `clients/<slug>/referencias/<id>/`: `reference.jpg`, `design.json` (idea, adaptación, temporada, campos, estado), `template.html.j2`, `preview.png`, `preview-story.png` y `preview-slide.png` para revisarlas. Una plantilla se puede retocar a mano, o borrar su carpeta para que se rehaga.
+
+```bash
+uv run social-agent moodboard --client vic-mercadeo                       # guía + plantillas de los pines nuevos
+uv run social-agent moodboard --client vic-mercadeo --solo-referencias --referencia santa.png   # imagen que no está en Pinterest
+uv run social-agent moodboard --client vic-mercadeo --rehacer-referencias # vuelve a diseñarlas todas
+uv run social-agent moodboard --client vic-mercadeo --solo-referencias --reintentar-descartadas  # solo las descartadas
+uv run social-agent moodboard --client vic-mercadeo --solo-referencias --revalidar  # repite las pruebas automáticas, sin Gemini
+```
+
+**Pruebas automáticas de cada plantilla:** que ningún texto se salga del lienzo ni quede cortado (las cintas o franjas decorativas con `class="deco"` sí pueden cruzar el borde); que cada texto contraste con su fondo real (por ejemplo, nada de texto blanco en una burbuja blanca); y que la imagen de la marca no tape ningún texto, midiendo sus píxeles visibles (un texto dentro de un panel opaco encima de la imagen sí vale). Después, Gemini compara la previsualización con el pin. 
+Si Gemini no rellena todos los huecos de un post, un paso extra (`fill_missing_fields`) pide solo los que faltan. La pose de cada post con referencia es la que eligió la plantilla (`photo_file`), porque está dimensionada para ella. Las referencias que piden algo que el banco no tiene (una toma cenital, un objeto gigante, una pose de caos) suelen quedar descartadas: para recuperarlas hay que sumar poses así al banco.
+
+Las plantillas las escribe un modelo, así que se renderizan en un entorno Jinja *sandbox* y Chromium solo puede cargar Google Fonts: cualquier otra petición de red se bloquea. Tampoco se aceptan plantillas con `<script>`, URLs o `@import`.
+
+**Publicar en Pinterest (opcional, apagado):** el publicador también sabe programar pines si un cliente lo pide como canal extra. Se activa con `pinterest: <id>` en `postiz_integrations`, más `pinterest_board` y `website` en `brand.yaml`. El titular va como título (100 caracteres), el copy recortado a 500, hasta 5 imágenes y enlace a `website`. Para esto sí hace falta **Standard access**: con Trial los pines quedan en sandbox y crearlos en producción puede dar 403.
 
 ### Notion
 
@@ -155,12 +201,7 @@ uv run social-agent integrations
 # Banco de fotos del cliente a partir de sus publicaciones de Instagram (estilos con photos: true)
 uv run social-agent fotos --client vic-mercadeo
 
-# Personaje 3D de la marca: variantes desde una foto, elegir la oficial y generar el banco de poses
-uv run social-agent personaje maestro --client vic-mercadeo --foto ruta/a/foto.jpg
-uv run social-agent personaje elegir --client vic-mercadeo --variante 23
-uv run social-agent personaje poses --client vic-mercadeo
-
-# Rehacer las imágenes de una parrilla ya escrita (con el personaje o con fotos nuevas generadas con IA)
+# Rehacer las imágenes de una parrilla ya escrita (con fotos nuevas generadas con IA)
 uv run social-agent rediseñar --client vic-mercadeo --month 2026-12 --dry-run
 
 # Onboarding: rellenar filas nuevas con su manual y activar las aprobadas
@@ -168,6 +209,12 @@ uv run social-agent onboarding run
 
 # Parrilla de un cliente (sube a Postiz y crea las filas en Notion)
 uv run social-agent plan --client cafe-la-ladera --month 2026-12
+# Dirección visual a partir del moodboard de Pinterest del cliente
+uv run social-agent moodboard --client vic-mercadeo
+
+# Rehacerla con textos nuevos: archiva en Notion las filas de ese mes en Pendiente y sube las nuevas
+# (las aprobadas, programadas o con cambios se quedan)
+uv run social-agent plan --client cafe-la-ladera --month 2026-12 --reemplazar
 
 # Programar lo aprobado (posts y carruseles) en su fecha del calendario
 uv run social-agent publish
@@ -176,8 +223,7 @@ uv run social-agent publish
 uv run social-agent publish --now
 
 # Dejarlo corriendo: parrilla del mes siguiente el día 20 a las 07:00 y, cada APPROVAL_POLL_SECONDS (60 s),
-# revisión de aprobados y onboarding (si NOTION_ONBOARDING_DATABASE_ID está configurado); cada
-# CHARACTER_POLL_HOURS (3 h), una tanda del personaje 3D (si HUGGINGFACE_API_TOKEN está configurado)
+# revisión de aprobados y onboarding (si NOTION_ONBOARDING_DATABASE_ID está configurado)
 uv run social-agent serve
 ```
 
@@ -190,6 +236,21 @@ uv run social-agent serve
 Windows: si la consola muestra caracteres raros en tildes, ejecuta con `PYTHONIOENCODING=utf-8`.
 
 Si una pieza aprobada no se puede programar (cliente sin canales, Postiz caído), el error queda en el log, la fila sigue en *Aprobado* y se reintenta en la siguiente pasada.
+
+### Panel de ejecuciones (local)
+
+```bash
+uv run social-agent ui            # abre http://127.0.0.1:8765 (Brave si está instalado)
+uv run social-agent ui --port 9000 --no-abrir
+```
+
+Cada paso del agente aparece como un nodo animado, con su % de avance, lo que está haciendo en ese momento (p. ej. *Esperando respuesta de gemini-…*), las esperas por límite de cuota con cuenta regresiva, métricas, la lista de elementos (semanas, piezas, pines, poses), miniaturas de las imágenes generadas y su registro. Muestra las ejecuciones de cualquier origen: las lanzadas desde la terminal, las de `serve` y las que se lanzan desde el propio panel (**Nueva ejecución**, con la opción *LLM falso* para probar sin gastar cuota). Las lanzadas desde el panel se pueden cancelar.
+
+- Cada ejecución guarda su estado en `out/_runs/<id>.json` (se conservan las últimas 200); el panel solo lee esos archivos, así que cerrarlo no detiene nada.
+- Las pasadas periódicas de `serve` (publicar, onboarding) solo quedan en el panel si hicieron algo o fallaron.
+- `models`, `integrations` y `onboarding setup` son instantáneos y no aparecen.
+- Escucha solo en `127.0.0.1` y solo lanza los comandos y opciones de una lista cerrada.
+- `FAKE_LLM_DELAY=1.5` simula la latencia del modelo con `LLM_PROVIDER=fake`, para ver la animación de cada paso.
 
 ### Estilo visual y banco de fotos
 
@@ -206,6 +267,8 @@ style:
   light_pillars: [Educativo]   # sobre papel claro; el resto, sobre pizarra con garabatos
   photos: true          # usar el banco de fotos de clients/<slug>/fotos/
 ```
+
+**Fotos reales desde una carpeta** (`uv run social-agent fotos --client vic-mercadeo --importar [rutas]`): añade al banco fotos que están en disco; sin rutas, toma las imágenes sueltas de `clients/<slug>/fotos/`. Pasan por el mismo recorte y la misma revisión que las de Instagram, pero no se voltean ni se retocan, y un PNG que ya viene con fondo transparente se usa tal cual. Los originales no se borran y no se importan dos veces.
 
 **`papel-pizarra`** salió del análisis de las 31 publicaciones de @vic.mercadeo: titulares condensados con 1–2 palabras en el color de la marca (el campo `highlight` que escribe Gemini), papel arrugado para lo educativo, pizarra con estrellas, ondas y # para lo personal y la venta, notas manuscritas y la persona recortada (con borde blanco tipo sticker en la pizarra). Las texturas y garabatos los dibuja la plantilla (SVG), no se copian de los posts. Los carruseles llevan foto en la portada y el cierre; las láminas del medio son texto centrado.
 
@@ -239,24 +302,6 @@ uv run social-agent rediseñar --client vic-mercadeo --month 2026-12            
 ```
 
 Solo reemplaza las filas en **Pendiente** (las archiva y las crea de nuevo con las imágenes nuevas); las aprobadas, programadas o con cambios no se tocan y el comando las lista.
-
-#### Personaje 3D animado (`style.character: true`)
-
-En vez de fotos de la persona, las piezas llevan una **caricatura 3D estilo película animada** de ella, siempre el mismo personaje, en la pose que pide cada tema. Se genera gratis con [Qwen-Image-Edit](https://huggingface.co/spaces/Qwen/Qwen-Image-Edit), un Space de Hugging Face: al **editar una foto real** (en vez de describirla con texto) conserva el pelo, la barba, los piercings y la ropa.
-
-```yaml
-style:
-  photos: true
-  character: true
-  character_photo: personaje/referencia.jpeg   # relativa a fotos/: de frente, buena luz, medio cuerpo
-```
-
-1. **Maestro:** `personaje maestro` convierte la foto en 3 variantes del personaje (`fotos/personaje/maestro-<n>.png`). Si `character_photo` está en `brand.yaml`, `serve` las genera solo.
-2. **Elegir:** se revisan las variantes y `personaje elegir --variante <n>` deja la oficial como `maestro.png`. Este paso es manual: el personaje se aprueba una sola vez.
-3. **Banco de poses:** a partir del maestro se generan 24 poses (`POSES` en `character.py`: explicando, señalando, brazos cruzados, con laptop, celular, café, megáfono, celebrando, pensando…). Cada una se recorta con el modelo general `u2net`, que conserva lo que el personaje tiene en las manos, y Gemini la revisa. Una pose descartada se reintenta una vez con otra semilla. Las poses entran en `fotos.json` con `kind: personaje`.
-4. **Parrilla:** `assign_photos` elige la pose que mejor va con cada pieza, igual que con las fotos reales. Mientras no haya poses, la parrilla sale con las fotos reales. `generate_photos` no se aplica: las poses ya son imágenes generadas. En Notion la pieza dice *"Personaje 3D generado con IA a partir de fotos de la marca"*. Para rehacer una parrilla ya escrita con el personaje: `rediseñar`.
-
-**Cuota:** el Space usa ZeroGPU. La cuenta gratuita da unos minutos de GPU al día, y cada imagen pide unos 4 min de reserva, así que alcanza para pocas imágenes diarias. El banco se llena **por tandas**: `serve` lo intenta cada `CHARACTER_POLL_HOURS`, guarda cada pose al terminarla y retoma donde quedó. Las 3 variantes y las 24 poses tardan alrededor de una semana con la cuenta gratuita, o un día con [Hugging Face PRO](https://huggingface.co/subscribe/pro) (25 min diarios). Una vez lleno, el banco se reutiliza todos los meses sin gastar cuota.
 
 ## 4. Lo que sigue siendo manual
 

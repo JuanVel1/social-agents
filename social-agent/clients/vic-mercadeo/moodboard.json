@@ -1,0 +1,53 @@
+{
+ "board": "1104015364845328485",
+ "pins": [
+  "1104015296194732531",
+  "1104015296194732546",
+  "1104015296194732555",
+  "1104015296194732566",
+  "1104015296194732623",
+  "1104015296194732637",
+  "1104015296194732656",
+  "1104015296194732667",
+  "1104015296194732671"
+ ],
+ "updated": "2026-11-10",
+ "guide": {
+  "summary": "La dirección visual fusiona el profesionalismo del marketing con un surrealismo digital lúdico, utilizando el juego de escalas y el collage moderno para dinamizar conceptos abstractos. Se busca una estética de 'revista interactiva' donde los elementos flotan y conviven con texturas de papel y pizarra.",
+  "composition": [
+   "Uso de perspectivas inusuales como el 'top-down' (cenital) o el juego de escalas (sujetos pequeños sobre objetos gigantes).",
+   "Composiciones dinámicas con elementos de interfaz (UI) y etiquetas flotando alrededor del sujeto principal.",
+   "Estructuras basadas en rejillas o cuadrículas sutiles que refuercen el concepto de 'pizarra' y orden estratégico.",
+   "Jerarquía tipográfica clara con títulos masivos que interactúan con los sujetos (texto por detrás o envolviendo la imagen)."
+  ],
+  "color_and_light": [
+   "Contraste alto: fondos limpios en blanco o gris pizarra para que resalten los azules de la marca (#16a4c8, #1c80b4).",
+   "Iluminación de estudio clara y uniforme para los sujetos, evitando sombras duras que ensucien el diseño.",
+   "Uso del color de acento (#87ceeb) para resaltar llamadas a la acción o elementos clave de la interfaz.",
+   "Tratamiento de color coherente: sujetos en color natural pero con recortes limpios tipo collage."
+  ],
+  "imagery": [
+   "Sujetos humanos con expresiones auténticas y dinámicas (acción, sorpresa, enfoque) integrados en entornos digitales.",
+   "Uso de recortes (cut-outs) de objetos cotidianos de oficina o tecnología mezclados con elementos inesperados.",
+   "Integración de capturas de pantalla o interfaces de apps tratadas como objetos físicos dentro de la escena.",
+   "Fotografía con profundidad de campo controlada para mantener el foco en el mensaje principal."
+  ],
+  "graphic_elements": [
+   "Anotaciones manuales con la tipografía 'Gochi Hand' para simular correcciones o ideas sobre la pizarra.",
+   "Etiquetas flotantes con bordes redondeados y cintas diagonales para destacar beneficios o servicios.",
+   "Líneas de conexión finas y curvas que guíen el ojo entre el sujeto y los elementos gráficos.",
+   "Uso de la tipografía 'Anton' para palabras de impacto que actúen como anclas visuales en la pieza."
+  ],
+  "trends": [
+   "Surrealismo digital: manipulación de tamaños y gravedades para explicar procesos de marketing.",
+   "Estética de collage editorial: mezcla de texturas de papel, recortes fotográficos y tipografía bold.",
+   "Minimalismo maximalista: fondos despejados pero con elementos gráficos vibrantes y tipografía de gran formato."
+  ],
+  "avoid": [
+   "Fotografías de stock genéricas sin intervención o recorte.",
+   "Uso de colores fuera de la paleta azul/blanco/slate definida.",
+   "Composiciones estáticas y centradas que carezcan de profundidad o movimiento.",
+   "Saturación excesiva de elementos que oculte la textura de papel-pizarra característica de la marca."
+  ]
+ }
+}

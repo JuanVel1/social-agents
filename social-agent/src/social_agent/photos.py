@@ -6,6 +6,7 @@ guarda clients/<slug>/fotos/<id>.png y fotos.json. Luego cada pieza de la parril
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import logging
@@ -19,6 +20,7 @@ import httpx
 import numpy as np
 from PIL import Image, ImageOps
 
+from . import progress
 from .config import Settings
 from .llm.base import LLMProvider, NoQuotaError
 from .models import Brand, MonthPlan, PhotoChoices, PhotoReview, PhotoReviewBatch, Piece, VisualBatch
@@ -32,7 +34,6 @@ PHOTO_TYPES = ("post", "carousel", "story")
 REVIEW_BATCH = 8
 MIN_FIGURE_SHARE = 0.04  # menos del 4 % de la imagen: no hay persona o es un detalle
 PHOTO = "foto"
-CHARACTER = "personaje"  # poses del personaje 3D (character.py), en fotos/personaje/
 
 REVIEW_SYSTEM = (
     "Revisas recortes automáticos (fondo quitado) de fotos de una marca personal para usarlos en "
@@ -58,7 +59,7 @@ def save_bank(clients_dir: Path, slug: str, bank: dict) -> None:
 
 
 def usable_photos(clients_dir: Path, slug: str, kind: str = PHOTO) -> list[dict]:
-    """Fotos útiles del banco: las reales (kind "foto") o las poses del personaje (kind "personaje")."""
+    """Fotos útiles del banco. Las entradas de otro `kind` (bancos antiguos) no cuentan."""
     folder = bank_dir(clients_dir, slug)
     return [p for p in load_bank(clients_dir, slug)["photos"]
             if p["usable"] and p.get("kind", PHOTO) == kind and (folder / p["file"]).exists()]
@@ -71,6 +72,12 @@ def instagram_token(settings: Settings, brand: Brand,
     if not integration:
         raise RuntimeError(f"{brand.slug} no tiene canal instagram-standalone en postiz_integrations: "
                            "el banco de fotos lee las publicaciones con esa conexión")
+    return postiz_token(settings, integration, "Instagram", run)
+
+
+def postiz_token(settings: Settings, integration: str, label: str,
+                 run: Callable[..., subprocess.CompletedProcess] = subprocess.run) -> str:
+    """Token de un canal tal como lo guarda (y renueva) Postiz en su base de datos. Solo se usa para leer."""
     if not re.fullmatch(r"[a-z0-9]+", integration):
         raise ValueError(f"ID de integración inesperado: {integration!r}")
     query = f"""select token from "Integration" where id = '{integration}' and "deletedAt" is null"""
@@ -78,7 +85,7 @@ def instagram_token(settings: Settings, brand: Brand,
                   "-d", settings.postiz_db_name, "-At", "-c", query], capture_output=True, text=True, timeout=60)
     token = result.stdout.strip()
     if result.returncode != 0 or not token:
-        raise RuntimeError(f"No se pudo leer el token de Instagram en Postiz: {result.stderr.strip() or 'canal no encontrado'}")
+        raise RuntimeError(f"No se pudo leer el token de {label} en Postiz: {result.stderr.strip() or 'canal no encontrado'}")
     return token
 
 
@@ -148,8 +155,8 @@ def _model_path(name: str) -> Path:
 class Cutter:
     """Quita el fondo con un modelo u2net de rembg, ejecutado directamente con onnxruntime.
 
-    u2net_human_seg (fotos reales) recorta solo a la persona; u2net (personaje) recorta el sujeto
-    completo, con lo que tenga en las manos.
+    u2net_human_seg recorta solo a la persona; u2net recorta el sujeto completo, con lo que tenga en
+    las manos.
 
     No importa rembg: este importa pymatting y numba, y el Control inteligente de aplicaciones de
     Windows bloquea la DLL de numba. El resultado es el mismo que rembg.remove(post_process_mask=True).
@@ -208,6 +215,7 @@ def review(llm: LLMProvider, cutouts: list[tuple[str, bytes]],
     for start in range(0, len(cutouts), REVIEW_BATCH):
         batch = cutouts[start:start + REVIEW_BATCH]
         ids = [photo_id for photo_id, _ in batch]
+        progress.detail(f"Revisando recortes {start + 1}-{start + len(batch)} de {len(cutouts)}")
         result = llm.generate(
             f"Revisa estos {len(batch)} recortes, en el mismo orden que la lista de ids de abajo.\n"
             f"usable = {subject} recortada limpia, sin restos de fondo, muebles, "
@@ -236,34 +244,142 @@ def refresh_bank(settings: Settings, brand: Brand, llm: LLMProvider, *, token: s
     folder.mkdir(parents=True, exist_ok=True)
 
     new: list[tuple[str, bytes, dict]] = []
-    for post in fetch_media(token, http):
-        for image_id, url in media_images(post):
-            if image_id in seen:
-                continue
-            seen.add(image_id)
-            cutter = cutter or Cutter()
-            png = cutter(http.get(url).raise_for_status().content)
-            if png:
-                new.append((image_id, png, post))
-    reviews = review(llm, [(image_id, png) for image_id, png, _ in new]) if new else {}
+    with progress.step("recortes"):
+        progress.activity("Leyendo publicaciones de Instagram")
+        for post in fetch_media(token, http):
+            for image_id, url in media_images(post):
+                if image_id in seen:
+                    continue
+                seen.add(image_id)
+                progress.activity(f"Recortando {image_id}")
+                cutter = cutter or Cutter()
+                png = cutter(http.get(url).raise_for_status().content)
+                if png:
+                    new.append((image_id, png, post))
+                progress.advance(item=image_id, status="done" if png else "skipped",
+                                 note="" if png else "sin persona")
+        progress.metric("Recortes nuevos", len(new))
+    if new:
+        with progress.step("revision", total=len(new)):
+            reviews = review(llm, [(image_id, png) for image_id, png, _ in new])
+            progress.advance(len(new))
+            progress.metric("Útiles", sum(1 for r in reviews.values() if r.usable))
+    else:
+        reviews = {}
+        progress.skip("revision", "No hay recortes nuevos")
 
-    for image_id, png, post in new:
-        verdict = reviews.get(image_id, PhotoReview(id=image_id, reason="sin revisión"))
-        cut = Image.open(io.BytesIO(png))
-        if verdict.mirrored_text:
-            cut = ImageOps.mirror(cut)  # la cámara frontal invierte la imagen: así el texto se lee bien
-        cut.save(folder / f"{image_id}.png")
-        bank["photos"].append({
-            "id": image_id, "file": f"{image_id}.png", "source": post.get("permalink", ""),
-            "date": post.get("timestamp", "")[:10], "usable": verdict.usable, "reason": verdict.reason,
-            "description": verdict.description, "framing": verdict.framing,
-        })
-    bank["seen"] = sorted(seen)
-    save_bank(settings.clients_dir, brand.slug, bank)
-    usable = sum(1 for p in bank["photos"] if p["usable"])
+    with progress.step("banco", total=len(new)):
+        for image_id, png, post in new:
+            verdict = reviews.get(image_id, PhotoReview(id=image_id, reason="sin revisión"))
+            cut = Image.open(io.BytesIO(png))
+            if verdict.mirrored_text:
+                cut = ImageOps.mirror(cut)  # la cámara frontal invierte la imagen: así el texto se lee bien
+            cut.save(folder / f"{image_id}.png")
+            bank["photos"].append({
+                "id": image_id, "file": f"{image_id}.png", "source": post.get("permalink", ""),
+                "date": post.get("timestamp", "")[:10], "usable": verdict.usable, "reason": verdict.reason,
+                "description": verdict.description, "framing": verdict.framing,
+            })
+            progress.advance(item=image_id, status="done" if verdict.usable else "skipped",
+                             note=verdict.reason[:200])
+        bank["seen"] = sorted(seen)
+        save_bank(settings.clients_dir, brand.slug, bank)
+        usable = sum(1 for p in bank["photos"] if p["usable"])
+        progress.metric("Fotos útiles en el banco", usable)
     log.info("Banco de fotos de %s: %s recortes nuevos, %s útiles en total", brand.slug, len(new), usable)
     return {"nuevas": len(new), "utiles_nuevas": sum(1 for i, _, _ in new if reviews.get(i) and reviews[i].usable),
             "utiles": usable}
+
+
+LOCAL = "local"
+IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
+
+
+def loose_images(clients_dir: Path, slug: str) -> list[Path]:
+    """Imágenes sueltas en fotos/ que no son recortes del banco: las que alguien dejó ahí para importar."""
+    folder = bank_dir(clients_dir, slug)
+    known = {p["file"] for p in load_bank(clients_dir, slug)["photos"]}
+    if not folder.is_dir():
+        return []
+    return sorted(p for p in folder.iterdir()
+                  if p.is_file() and p.suffix.lower() in IMAGE_SUFFIXES and p.name not in known)
+
+
+def _own_cutout(data: bytes) -> bytes | None:
+    """Si la imagen ya viene recortada (PNG con fondo transparente), se usa tal cual, ajustada a la figura."""
+    image = Image.open(io.BytesIO(data))
+    if image.mode not in ("RGBA", "LA"):
+        return None
+    image = image.convert("RGBA")
+    alpha = np.array(image.getchannel("A"))
+    if (alpha < 16).mean() < 0.05:  # casi opaca: es una foto normal guardada con canal alfa
+        return None
+    buffer = io.BytesIO()
+    image.crop(image.getbbox()).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def import_photos(clients_dir: Path, brand: Brand, llm: LLMProvider, files: list[Path], *,
+                  cutter: Callable[[bytes], bytes | None] | None = None) -> dict:
+    """Añade al banco fotos reales de la persona que están en disco (kind "foto", source "local").
+
+    Mismo recorrido que las de Instagram (recorte del fondo y revisión), pero la imagen de la persona no se
+    toca: ni se voltea ni se retoca, para que su cara sea exactamente la de la foto. Las ya importadas (mismo
+    contenido) se saltan.
+    """
+    bank = load_bank(clients_dir, brand.slug)
+    seen = set(bank["seen"])
+    folder = bank_dir(clients_dir, brand.slug)
+    folder.mkdir(parents=True, exist_ok=True)
+    new: list[tuple[str, bytes, Path]] = []
+    skipped = 0
+    with progress.step("recortes", total=len(files)):
+        for path in files:
+            data = path.read_bytes()
+            image_id = f"{LOCAL}-{hashlib.sha1(data).hexdigest()[:10]}"
+            if image_id in seen:
+                skipped += 1
+                progress.advance(item=path.name, status="skipped", note="ya estaba en el banco")
+                continue
+            seen.add(image_id)
+            progress.activity(f"Recortando {path.name}")
+            png = _own_cutout(data)
+            if png is None:
+                cutter = cutter or Cutter()
+                png = cutter(data)
+            if png:
+                new.append((image_id, png, path))
+            progress.advance(item=path.name, status="done" if png else "error",
+                             note="" if png else "no se encontró una persona")
+        progress.metric("Recortes nuevos", len(new))
+    if new:
+        with progress.step("revision", total=len(new)):
+            reviews = review(llm, [(image_id, png) for image_id, png, _ in new])
+            progress.advance(len(new))
+    else:
+        reviews = {}
+        progress.skip("revision", "No hay fotos nuevas")
+    with progress.step("banco", total=len(new)):
+        for image_id, png, path in new:
+            verdict = reviews.get(image_id, PhotoReview(id=image_id, reason="sin revisión"))
+            (folder / f"{image_id}.png").write_bytes(png)
+            bank["photos"].append({
+                "id": image_id, "file": f"{image_id}.png", "kind": PHOTO, "source": LOCAL, "original": path.name,
+                "date": "", "usable": verdict.usable, "reason": verdict.reason,
+                "description": verdict.description, "framing": verdict.framing,
+            })
+            progress.output(folder / f"{image_id}.png")
+            progress.advance(item=path.name, status="done" if verdict.usable else "skipped",
+                             note=verdict.reason[:200])
+        bank["seen"] = sorted(seen)
+        save_bank(clients_dir, brand.slug, bank)
+        usable = sum(1 for p in bank["photos"] if p["usable"] and p.get("kind", PHOTO) == PHOTO)
+        progress.metric("Fotos reales útiles", usable)
+    discarded = [f"{path.name}: {reviews[i].reason if i in reviews else 'sin revisión'}"
+                 for i, _, path in new if not (reviews.get(i) and reviews[i].usable)]
+    log.info("Fotos locales de %s: %s nuevas, %s ya estaban", brand.slug, len(new), skipped)
+    return {"nuevas": len(new), "utiles_nuevas": len(new) - len(discarded), "ya_estaban": skipped,
+            "sin_persona": len(files) - skipped - len(new), "descartadas": discarded, "utiles": usable}
 
 
 GENERATED = "generadas"
@@ -280,18 +396,22 @@ def is_generated(photo: str) -> bool:
     return photo.startswith(f"{GENERATED}/")
 
 
+@progress.tracked("visuales")
 def describe_visuals(plan: MonthPlan, brand: Brand, llm: LLMProvider) -> int:
     """Rellena `visual` en planes escritos antes de que existiera el campo. Devuelve cuántas completó."""
     from .planner import VISUAL_RULE
 
     missing = [p for p in plan.pieces if p.type in PHOTO_TYPES and p.content and not p.content.visual]
     if not missing:
+        progress.detail("Todas las piezas ya tienen visual")
         return 0
+    progress.detail(f"{len(missing)} piezas sin visual")
     items = [{"slot_id": p.id, "type": p.type, "pillar": p.pillar, "headline": p.content.headline,
               "caption": p.content.caption[:300]} for p in missing]
     result = llm.generate(
         f"Marca: {brand.name} ({brand.sector}). Tono: {brand.tone}.\n"
-        f"Para cada pieza escribe su campo {VISUAL_RULE}\n"
+        + (f"Dirección visual (moodboard): {brand.visual_direction}\n" if brand.visual_direction else "")
+        + f"Para cada pieza escribe su campo {VISUAL_RULE}\n"
         f"<pieces>{json.dumps(items, ensure_ascii=False)}</pieces>",
         VisualBatch, tier="bulk",
     )
@@ -301,6 +421,7 @@ def describe_visuals(plan: MonthPlan, brand: Brand, llm: LLMProvider) -> int:
     return sum(1 for p in missing if p.content.visual)
 
 
+@progress.tracked("fotos_ia")
 def generate_photos(plan: MonthPlan, brand: Brand, clients_dir: Path, llm: LLMProvider,
                     cutter: Callable[[bytes], bytes | None] | None = None) -> dict:
     """Cambia la foto asignada de cada pieza por una nueva generada con IA a partir de ella.
@@ -324,11 +445,15 @@ def generate_photos(plan: MonthPlan, brand: Brand, clients_dir: Path, llm: LLMPr
         elif not is_generated(piece.photo):
             pending.append(piece)
 
+    progress.set_total(len(pending))
+    progress.metric("Reutilizadas", counts["reutilizadas"])
     for attempt in range(GENERATE_ATTEMPTS):
         if not pending:
             break
+        progress.detail(f"Intento {attempt + 1} de {GENERATE_ATTEMPTS} · {len(pending)} piezas")
         candidates: list[tuple[Piece, bytes]] = []
         for piece in pending:
+            progress.activity(f"Generando la foto de {piece.id}")
             references = [piece.photo] + [f for f in faces if f != piece.photo][:2]
             try:
                 image = llm.generate_image(GENERATE_PROMPT.format(visual=piece.content.visual.rstrip(".")),
@@ -356,20 +481,27 @@ def generate_photos(plan: MonthPlan, brand: Brand, clients_dir: Path, llm: LLMPr
             piece.photo = target
             done.add(piece.id)
             counts["generadas"] += 1
+            progress.output(folder / target)
+            progress.advance(item=piece.id)
+            progress.metric("Generadas", counts["generadas"])
         pending = [p for p in pending if p.id not in done]
 
     counts["originales"] += len(pending)
     for piece in pending:
         log.warning("%s se queda con la foto original %s", piece.id, piece.photo)
+        progress.advance(item=piece.id, status="skipped", note="foto original")
+    progress.metric("Con la original", counts["originales"])
     log.info("Fotos con IA de %s %s: %s", brand.slug, plan.month, dict(counts))
     return {"generadas": counts["generadas"], "reutilizadas": counts["reutilizadas"], "originales": counts["originales"]}
 
 
+@progress.tracked("asignar_fotos")
 def assign_photos(plan: MonthPlan, photos: list[dict], llm: LLMProvider) -> None:
     """Elige una foto del banco para cada post, carrusel e historia, sin repetir dentro de la semana."""
     pieces = [p for p in plan.pieces if p.type in PHOTO_TYPES and p.content]
     if not photos or not pieces:
         return
+    progress.detail(f"{len(pieces)} piezas · {len(photos)} fotos en el banco")
     catalog = [{"file": p["file"], "framing": p["framing"], "description": p["description"]} for p in photos]
     items = [{"slot_id": p.id, "type": p.type, "pillar": p.pillar, "topic": p.topic,
               "headline": p.content.headline} for p in pieces]
